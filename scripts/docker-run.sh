@@ -14,12 +14,17 @@ IMAGE="${NAUKRI_IMAGE:-naukri-refresher:latest}"
 uid="$(id -u naukri)"
 gid="$(id -g naukri)"
 
+# The unit drops CAP_DAC_OVERRIDE, so root here obeys normal file permissions: fill the
+# directory while root still owns it, and only then hand it to naukri (CAP_CHOWN/CAP_FOWNER).
+# RuntimeDirectory= is created empty for every run and removed afterwards.
 creds="${RUNTIME_DIRECTORY}/creds"
-install -d -m 0500 -o "$uid" -g "$gid" "$creds"
+install -d -m 0700 "$creds"
 for f in "$CREDENTIALS_DIRECTORY"/*; do
   [ -e "$f" ] || continue
   install -m 0400 -o "$uid" -g "$gid" "$f" "$creds/$(basename "$f")"
 done
+chown "$uid:$gid" "$creds"
+chmod 0500 "$creds"
 mkdir -p "${DOCKER_CONFIG:-$RUNTIME_DIRECTORY/docker}"
 
 tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"

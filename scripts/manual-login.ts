@@ -6,8 +6,9 @@
  *     npm run manual-login -- --out other.json
  *
  * A normal (headed) Chromium window opens on the Naukri login page. YOU log in and complete
- * any OTP / CAPTCHA yourself. Then press Enter here; the script checks the profile page and
- * saves the session (cookies + local storage) to state.json for the Pi.
+ * any OTP / CAPTCHA yourself. The script notices when Naukri lands on your logged-in pages
+ * (or, with --enter, waits for you to press Enter), checks the profile page and saves the
+ * session (cookies + local storage) to state.json for the Pi.
  */
 import { chmod, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -20,6 +21,8 @@ const { values } = parseArgs({
   options: {
     out: { type: 'string', default: 'state.json' },
     'base-url': { type: 'string', default: 'https://www.naukri.com' },
+    /** Wait for Enter instead of detecting the login automatically. */
+    enter: { type: 'boolean', default: false },
   },
 });
 const out = resolve(values.out!);
@@ -32,10 +35,16 @@ try {
   await page.goto(new URL(sel.paths.login, baseUrl).toString());
 
   console.log('\nA browser window is open on the Naukri login page.');
-  console.log('Log in yourself and complete any OTP or verification.');
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  await rl.question('When you can see your Naukri home page, press Enter here... ');
-  rl.close();
+  console.log('Log in yourself and complete any OTP or verification (you have 10 minutes).');
+  if (values.enter) {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    await rl.question('When you can see your Naukri home page, press Enter here... ');
+    rl.close();
+  } else {
+    // After a successful login Naukri moves to /mnjuser/... (home page). Detect that ourselves.
+    await page.waitForURL((u) => u.pathname.startsWith('/mnjuser/'), { timeout: 10 * 60_000 });
+    console.log('Login detected.');
+  }
 
   await page.goto(new URL(sel.paths.profile, baseUrl).toString(), { waitUntil: 'domcontentloaded' });
   try {
