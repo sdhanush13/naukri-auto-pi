@@ -1,0 +1,13 @@
+{
+  "resumePath": "/etc/naukri-refresher/resume/resume.pdf",
+  "headline": "Software engineer - TypeScript, Node.js, cloud. Open to new roles.",
+  "summary": "Replace this with your profile summary. It must be at least 50 characters long, or remove the key to leave the summary untouched.",
+  "schedule": "Mon..Fri 10:00",
+  "notify": {
+    "provider": "ntfy",
+    "server": "https://ntfy.sh",
+    "topic": "naukri-CHANGE-ME-to-a-long-random-string"
+  },
+  "healthchecksUrl": "https://hc-ping.com/your-check-uuid",
+  "retryDelaySeconds": 60
+}

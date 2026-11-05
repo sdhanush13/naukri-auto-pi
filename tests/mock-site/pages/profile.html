@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mock Naukri - Profile</title>
+  <style>[hidden]{display:none!important}.edit{cursor:pointer}</style>
+</head>
+<body>
+  <h1>My profile</h1>
+  <p class="lastUpdated">Profile last updated - <span>{{UPDATED}}</span></p>
+
+  <section class="resumeSection">
+    <div class="widgetHead"><span class="widgetTitle">Resume</span></div>
+    <div class="fileName">{{FILENAME}}</div>
+    <input type="file" id="attachCV" accept=".pdf,.doc,.docx" style="display:none">
+    <label for="attachCV">Update resume</label>
+    <div id="toast" role="status" hidden></div>
+  </section>
+
+  <section class="resumeHeadline">
+    <div class="widgetHead">
+      <span class="widgetTitle">Resume headline</span>
+      <span class="edit" role="button" aria-label="Edit resume headline">✎</span>
+    </div>
+    <div class="headlineText">{{HEADLINE}}</div>
+  </section>
+
+  <section class="profileSummary">
+    <div class="widgetHead">
+      <span class="widgetTitle">Profile summary</span>
+      <span class="edit" role="button" aria-label="Edit profile summary">✎</span>
+    </div>
+    <div class="summaryText">{{SUMMARY}}</div>
+  </section>
+
+  <div role="dialog" id="headlineDialog" aria-label="Resume headline" hidden>
+    <textarea id="resumeHeadlineTxt"></textarea>
+    <button data-field="headline">Save</button>
+  </div>
+  <div role="dialog" id="summaryDialog" aria-label="Profile summary" hidden>
+    <textarea id="profileSummaryTxt"></textarea>
+    <button data-field="summary">Save</button>
+  </div>
+
+  <script>
+    const uploadFails = {{UPLOADFAIL}};
+    const post = (url, data) => fetch(url, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
+    });
+
+    document.getElementById('attachCV').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      const toast = document.getElementById('toast');
+      if (uploadFails) { toast.textContent = 'Something went wrong, please try again'; toast.hidden = false; return; }
+      await post('/api/upload', { name: file.name, size: file.size });
+      document.querySelector('.fileName').textContent = file.name;
+      document.querySelector('.lastUpdated span').textContent = 'Today';
+      toast.textContent = 'Resume has been successfully uploaded.';
+      toast.hidden = false;
+    });
+
+    const wire = (sectionSel, dialogId, textareaId, textSel) => {
+      document.querySelector(sectionSel + ' .edit').addEventListener('click', () => {
+        document.getElementById(textareaId).value = document.querySelector(textSel).textContent;
+        document.getElementById(dialogId).hidden = false;
+      });
+    };
+    wire('.resumeHeadline', 'headlineDialog', 'resumeHeadlineTxt', '.headlineText');
+    wire('.profileSummary', 'summaryDialog', 'profileSummaryTxt', '.summaryText');
+
+    document.querySelectorAll('[role=dialog] button').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const field = btn.dataset.field;
+        const dialog = btn.closest('[role=dialog]');
+        const value = dialog.querySelector('textarea').value;
+        await post('/api/profile', { field, value });
+        document.querySelector(field === 'headline' ? '.headlineText' : '.summaryText').textContent = value;
+        document.querySelector('.lastUpdated span').textContent = 'Today';
+        dialog.hidden = true;
+      });
+    });
+  </script>
+</body>
+</html>

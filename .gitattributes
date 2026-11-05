@@ -1,0 +1,5 @@
+# Everything that runs on the Pi must keep LF line endings, even when edited on Windows.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.docx binary

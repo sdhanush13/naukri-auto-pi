@@ -1,0 +1,16 @@
+[Unit]
+Description=Refresh my Naukri profile on weekday mornings
+
+[Timer]
+# Default schedule. scripts/install.sh overrides it from "schedule" in
+# /etc/naukri-refresher/config.json via a drop-in (naukri-refresher.timer.d/schedule.conf).
+OnCalendar=Mon..Fri 10:00
+# Run at next boot if the Pi was off (power cut) at the scheduled time.
+Persistent=true
+# Fixed time on purpose: no randomised timing.
+RandomizedDelaySec=0
+AccuracySec=1min
+Unit=naukri-refresher.service
+
+[Install]
+WantedBy=timers.target

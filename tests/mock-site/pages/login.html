@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Mock Naukri - Login</title></head>
+<body>
+  <h1>Login</h1>
+  <form id="loginForm">
+    <input id="usernameField" type="text" placeholder="Enter your active Email ID / Username">
+    <input id="passwordField" type="password" placeholder="Enter your password">
+    {{CAPTCHA}}
+    <div class="server-err" hidden></div>
+    <button type="submit">Login</button>
+  </form>
+  <!-- Invisible reCAPTCHA v3 badge: must NOT be treated as a challenge. -->
+  <div class="grecaptcha-badge" style="position:fixed;bottom:0;right:0;width:70px;height:60px">
+    <div class="grecaptcha-logo">badge</div>
+  </div>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('usernameField').value,
+          password: document.getElementById('passwordField').value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = document.querySelector('.server-err');
+        err.textContent = data.error;
+        err.hidden = false;
+        return;
+      }
+      location.href = data.next;
+    });
+  </script>
+</body>
+</html>

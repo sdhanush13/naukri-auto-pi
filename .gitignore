@@ -1,0 +1,22 @@
+node_modules/
+dist/
+ms-playwright/
+
+# Personal data and secrets - never commit
+resumes/
+*.pdf
+*.doc
+*.docx
+state.json
+**/state.json
+artifacts/
+*.cred
+.env
+.env*
+config.json
+!config.example.json
+
+# Test output
+test-results/
+.tmp/
+coverage/

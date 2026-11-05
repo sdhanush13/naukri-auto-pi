@@ -1,0 +1,65 @@
+# Native mode (fallback). scripts/install.sh --mode native installs this file as
+# /etc/systemd/system/naukri-refresher.service. Node + Chromium run directly as `naukri`.
+#
+# Credentials: the drop-in naukri-refresher.service.d/credentials.conf (written by
+# scripts/set-credentials.sh) adds one LoadCredentialEncrypted= line per stored secret;
+# systemd decrypts them into $CREDENTIALS_DIRECTORY, readable only by this service.
+
+[Unit]
+Description=Naukri profile refresher (native)
+Documentation=file:///opt/naukri-refresher/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=naukri
+Group=naukri
+WorkingDirectory=/opt/naukri-refresher
+ExecStart=/usr/bin/env node /opt/naukri-refresher/dist/index.js
+ExecStopPost=+/bin/rm -f /run/naukri-refresher.oneshot.env
+EnvironmentFile=-/run/naukri-refresher.oneshot.env
+Environment=NODE_ENV=production
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/naukri-refresher/ms-playwright
+Environment=HOME=/var/lib/naukri-refresher
+TimeoutStartSec=25min
+Restart=no
+# Cap Chromium so it cannot take the whole Pi down.
+MemoryMax=1536M
+TasksMax=512
+
+# --- Hardening, as specified ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/naukri-refresher
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+# --- Extra hardening that Chromium tolerates ---
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+
+# --- Relaxations Chromium genuinely needs (documented in README "Service hardening") ---
+# 1. AF_NETLINK added to the specified AF_INET AF_INET6 AF_UNIX: Chromium's network-change
+#    notifier reads interface state over netlink.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# 2. RestrictNamespaces= is NOT set: Chromium's sandbox creates user/PID/net namespaces.
+#    Keeping Chromium's sandbox is safer than running it with --no-sandbox.
+# 3. MemoryDenyWriteExecute= is NOT set: V8's JIT needs writable+executable memory.
+# 4. SystemCallFilter= is NOT set: Chromium installs its own seccomp-bpf filter, and a
+#    systemd allow-list broad enough for it would add little.
+
+[Install]
+# Started by naukri-refresher.timer; not enabled on its own.

@@ -1,0 +1,122 @@
+import { open, readFile, stat } from 'node:fs/promises';
+import { extname } from 'node:path';
+import { z } from 'zod';
+
+export const DEFAULT_CONFIG_PATH = '/etc/naukri-refresher/config.json';
+export const MAX_RESUME_BYTES = 2 * 1024 * 1024;
+export const RESUME_EXTENSIONS: readonly string[] = ['.pdf', '.doc', '.docx'];
+
+const notifySchema = z.discriminatedUnion('provider', [
+  z.strictObject({
+    provider: z.literal('ntfy'),
+    server: z.url().default('https://ntfy.sh'),
+    // Anyone who knows a public ntfy.sh topic can read it, so it should be long and random.
+    topic: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/, 'ntfy topic may only contain letters, digits, "_" and "-" (max 64)'),
+  }),
+  z.strictObject({
+    provider: z.literal('telegram'),
+    // The bot token is a secret and lives in the "telegram-bot-token" credential, not here.
+    chatId: z.string().regex(/^(-?\d+|@\w+)$/, 'telegram chatId must be numeric or @channelname'),
+  }),
+  z.strictObject({ provider: z.literal('none') }),
+]);
+
+export const configSchema = z.strictObject({
+  resumePath: z
+    .string()
+    .min(1)
+    .refine((p) => RESUME_EXTENSIONS.includes(extname(p).toLowerCase()), {
+      message: 'resumePath must end in .pdf, .doc or .docx',
+    }),
+  headline: z.string().trim().min(1).max(250, 'headline must be at most 250 characters').optional(),
+  summary: z.string().trim().min(50, 'summary must be at least 50 characters').optional(),
+  /** systemd OnCalendar expression; applied to the timer by scripts/install.sh. */
+  schedule: z.string().trim().min(1).default('Mon..Fri 10:00'),
+  notify: notifySchema.default({ provider: 'none' }),
+  healthchecksUrl: z.url().optional(),
+  stateDir: z.string().min(1).default('/var/lib/naukri-refresher'),
+  /** Overridable only so tests can point the flow at the local mock site. */
+  baseUrl: z.url().default('https://www.naukri.com'),
+  retryDelaySeconds: z.number().int().min(0).max(900).default(60),
+  timeouts: z
+    .strictObject({
+      navigationMs: z.number().int().positive().default(45_000),
+      actionMs: z.number().int().positive().default(20_000),
+      uploadMs: z.number().int().positive().default(90_000),
+    })
+    .prefault({}),
+});
+
+export type Config = z.output<typeof configSchema>;
+export type ConfigInput = z.input<typeof configSchema>;
+
+export class ConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ConfigError';
+  }
+}
+
+export function parseConfig(raw: unknown): Config {
+  const result = configSchema.safeParse(raw);
+  if (!result.success) {
+    throw new ConfigError(`Invalid config:\n${z.prettifyError(result.error)}`);
+  }
+  return result.data;
+}
+
+export async function loadConfig(path: string = DEFAULT_CONFIG_PATH): Promise<Config> {
+  let text: string;
+  try {
+    text = await readFile(path, 'utf8');
+  } catch (err) {
+    throw new ConfigError(`Cannot read config ${path}: ${(err as NodeJS.ErrnoException).code ?? String(err)}`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (err) {
+    throw new ConfigError(`Config ${path} is not valid JSON: ${(err as Error).message}`);
+  }
+  return parseConfig(raw);
+}
+
+/** File signatures, so a renamed text file or a broken download is caught before uploading. */
+const MAGIC: Record<string, Buffer[]> = {
+  '.pdf': [Buffer.from('%PDF')],
+  '.docx': [Buffer.from([0x50, 0x4b, 0x03, 0x04])],
+  '.doc': [Buffer.from([0xd0, 0xcf, 0x11, 0xe0])],
+};
+
+/** Resume must exist, be a regular file, be PDF/DOC/DOCX, be non-empty and at most 2 MB. */
+export async function checkResumeFile(path: string): Promise<{ sizeBytes: number }> {
+  const ext = extname(path).toLowerCase();
+  if (!RESUME_EXTENSIONS.includes(ext)) {
+    throw new ConfigError(`Resume ${path} must be .pdf, .doc or .docx`);
+  }
+  let info;
+  try {
+    info = await stat(path);
+  } catch {
+    throw new ConfigError(`Resume file not found or not readable: ${path}`);
+  }
+  if (!info.isFile()) throw new ConfigError(`Resume path is not a file: ${path}`);
+  if (info.size === 0) throw new ConfigError(`Resume file is empty: ${path}`);
+  if (info.size > MAX_RESUME_BYTES) {
+    throw new ConfigError(
+      `Resume is ${(info.size / 1024 / 1024).toFixed(2)} MB; Naukri allows at most 2 MB: ${path}`,
+    );
+  }
+  const handle = await open(path, 'r');
+  try {
+    const head = Buffer.alloc(4);
+    await handle.read(head, 0, 4, 0);
+    const ok = (MAGIC[ext] ?? []).some((m) => head.subarray(0, m.length).equals(m));
+    if (!ok) throw new ConfigError(`Resume ${path} does not look like a real ${ext} file`);
+  } finally {
+    await handle.close();
+  }
+  return { sizeBytes: info.size };
+}
