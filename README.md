@@ -1,13 +1,45 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="naukri-auto-pi: keeps your Naukri profile fresh, every weekday, from a Raspberry Pi" width="100%">
+</p>
+
+<p align="center">
+  <img alt="Node 20+" src="https://img.shields.io/badge/node-%E2%89%A520-339933?logo=nodedotjs&logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-ESM-3178C6?logo=typescript&logoColor=white">
+  <img alt="Playwright 1.64.1" src="https://img.shields.io/badge/Playwright-1.64.1-2EAD33?logo=playwright&logoColor=white">
+  <img alt="Raspberry Pi arm64" src="https://img.shields.io/badge/Raspberry%20Pi-arm64-A22846?logo=raspberrypi&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Docker-default-2496ED?logo=docker&logoColor=white">
+</p>
+
 # naukri-refresher
 
-A small headless Playwright (Chromium) job for a Raspberry Pi on your home network. Once per
-weekday it keeps **your own** Naukri.com profile fresh:
+A small Playwright (Chromium) job for a Raspberry Pi on your home network. On a systemd timer
+(for example 09:00, 13:00 and 17:00 on weekdays) it keeps **your own** Naukri.com profile fresh:
 
 1. reuses the saved session (or logs in with your stored credentials),
 2. re-uploads your resume,
-3. optionally updates the resume headline and profile summary,
+3. optionally re-saves your resume headline and profile summary from `config.json`,
 4. reloads the profile and checks that it shows today as the last update,
 5. sends you the result on ntfy or Telegram, and optionally pings healthchecks.io.
+
+## Quick start
+
+```bash
+# laptop (Git Bash on Windows): copy the repo to the Pi and run the installer there
+PI=user@your-pi bash scripts/deploy.sh
+
+# Pi: resume, config and encrypted credentials
+sudo cp ~/Resume.pdf /etc/naukri-refresher/resume/resume.pdf
+sudoedit /etc/naukri-refresher/config.json
+sudo bash /opt/naukri-refresher/scripts/set-credentials.sh
+
+# laptop: log in once yourself, then copy state.json to the Pi (setup steps 4-5)
+npm ci && npx playwright install chromium && npm run manual-login
+
+# Pi: test, then switch on the timer
+bash /opt/naukri-refresher/scripts/run-now.sh --dry-run
+sudo systemctl enable --now naukri-refresher.timer
+```
+Full details are in [Setup (in this order)](#setup-in-this-order).
 
 It has no web UI, no listening ports, and uses no cloud services beyond the notifications.
 It does not solve OTPs or CAPTCHAs, use stealth plugins, randomise timing or use proxies. When
@@ -45,11 +77,11 @@ Naukri wants a human, the job stops and asks you (exit code 2).
 ## How it works
 
 ```
-systemd timer (Mon..Fri 10:00, Persistent=true)
+systemd timer (config "schedule", e.g. Mon..Fri 09,13,17:00; Persistent=true)
   └─ naukri-refresher.service  (oneshot)
        ├─ LoadCredentialEncrypted=  -> decrypted into $CREDENTIALS_DIRECTORY (RAM)
        └─ Docker mode: scripts/docker-run.sh -> hardened container, runs as UID "naukri"
-          Native mode: node dist/index.js as user "naukri"
+          Native mode: xvfb-run node dist/index.js as user "naukri"
                ├─ config.json validated (zod), resume checked (type, ≤ 2 MB)
                ├─ lock file, daily cap (maxAttemptsPerDay, default 2)
                ├─ attempt 1 ─ fail(1) ─ wait 60 s ─ attempt 2   (exit 2 is never retried)
@@ -152,8 +184,9 @@ npm ci
 npx playwright install chromium
 npm run manual-login           # opens a normal Chromium window
 ```
-Log in yourself, complete any OTP, wait for your Naukri home page, then press Enter in the
-terminal. The script checks your profile page and writes `state.json`.
+Log in yourself and complete any OTP. The script notices when your Naukri home page opens
+(add `-- --enter` to confirm with Enter instead), checks your profile page and writes
+`state.json`.
 
 ### 5. Copy the session to the Pi
 
@@ -206,8 +239,8 @@ so typos don't pass silently.
 | Key | Rule |
 |---|---|
 | `resumePath` | `.pdf` / `.doc` / `.docx`, at most 2 MB; the file signature is checked too. Keep it under `/etc/naukri-refresher/resume/` (Docker mounts only that tree). |
-| `headline` | optional, 1-250 chars |
-| `summary` | optional, at least 50 chars |
+| `headline` | optional, at most 250 chars and at least 5 words (Naukri's rules). Omit to leave it untouched. |
+| `summary` | optional, 50-1000 chars. Omit to leave it untouched. Each run re-saves the same text. |
 | `schedule` | systemd `OnCalendar` expression, local time. Default `Mon..Fri 10:00`. |
 | `notify` | `{"provider":"ntfy","topic":...,"server"?}`, `{"provider":"telegram","chatId":...}` or `{"provider":"none"}` |
 | `healthchecksUrl` | optional; pinged with `/start`, success and `/fail`. Set the check's period to match your schedule (for example, cron `0 10 * * 1-5`, IST, grace 1 h). |
@@ -286,8 +319,8 @@ is a screenshot in `/var/lib/naukri-refresher/artifacts/<time>-manual-login/`.
 The job never retries exit code 2 automatically, so it won't trigger repeated OTP messages or
 lock your account with repeated wrong passwords.
 
-Sessions saved on a laptop can be invalidated sooner because the Pi's headless Chromium
-reports a different browser. If you hit exit 2 often, let the Pi log in with stored
+Sessions saved on a laptop can be invalidated sooner because the Pi's Chromium reports a
+different browser. If you hit exit 2 often, let the Pi log in with stored
 credentials, and use `manual-login` only when Naukri asks for an OTP.
 
 ---
@@ -297,11 +330,11 @@ credentials, and use `manual-login` only when Naukri asks for an OTP.
 All selectors are in [`src/selectors.ts`](src/selectors.ts). They use `getByRole` /
 `getByPlaceholder` / `getByText` first, with CSS ids as fallbacks.
 
-The selectors are cross-checked against several public Naukri automation projects (Nov 2026).
-One of them documents the profile editors as verified on the live site on 2026-10-31; sources
-and observed quirks are listed at the top of `selectors.ts`. They have not yet been checked
-against your own account. The first dry run and real run are that check. If a step fails, or
-whenever Naukri changes its layout:
+The selectors were cross-checked against several public Naukri automation projects and then
+confirmed on the live site on 2026-11-05: upload, headline, summary (`#profileSummaryTxt`) and
+the "last updated" check. The lower profile sections are lazy-loaded, so the job scrolls to
+each one before editing it. Sources and observed quirks are listed at the top of
+`selectors.ts`. If a step fails, or whenever Naukri changes its layout:
 
 1. Find the failing step (notification, `status.sh`). Copy the artifacts to your laptop:
    ```bash

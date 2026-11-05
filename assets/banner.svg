@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="t d">
+  <title id="t">naukri-auto-pi</title>
+  <desc id="d">Keeps your Naukri profile fresh, every weekday, from a Raspberry Pi.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1f3a"/>
+      <stop offset="1" stop-color="#123e6b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4fd1c5"/>
+      <stop offset="1" stop-color="#63b3ed"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#ffffff" stroke-opacity="0.05"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="320" rx="20" fill="url(#bg)"/>
+  <rect width="1280" height="320" rx="20" fill="url(#grid)"/>
+
+  <!-- Board with chip, pins and a refresh arrow -->
+  <g transform="translate(96 70)">
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#1a4d36" stroke="#4fd1c5" stroke-width="3"/>
+    <g fill="#d4af37">
+      <rect x="20" y="12" width="8" height="8" rx="2"/><rect x="36" y="12" width="8" height="8" rx="2"/>
+      <rect x="52" y="12" width="8" height="8" rx="2"/><rect x="68" y="12" width="8" height="8" rx="2"/>
+      <rect x="84" y="12" width="8" height="8" rx="2"/><rect x="100" y="12" width="8" height="8" rx="2"/>
+      <rect x="116" y="12" width="8" height="8" rx="2"/><rect x="132" y="12" width="8" height="8" rx="2"/>
+      <rect x="148" y="12" width="8" height="8" rx="2"/><rect x="164" y="12" width="8" height="8" rx="2"/>
+    </g>
+    <rect x="30" y="52" width="70" height="70" rx="6" fill="#2d3748" stroke="#a0aec0" stroke-width="2"/>
+    <g stroke="#a0aec0" stroke-width="2">
+      <path d="M100 66h20M100 87h20M100 108h20M10 66h20M10 87h20M10 108h20"/>
+    </g>
+    <rect x="200" y="46" width="34" height="30" rx="3" fill="#cbd5e0"/>
+    <rect x="200" y="96" width="34" height="30" rx="3" fill="#cbd5e0"/>
+    <circle cx="16" cy="164" r="6" fill="none" stroke="#4fd1c5" stroke-width="2"/>
+    <circle cx="224" cy="164" r="6" fill="none" stroke="#4fd1c5" stroke-width="2"/>
+    <!-- refresh arrow -->
+    <g transform="translate(160 132)" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round">
+      <path d="M-26 0a26 26 0 1 1 8 19"/>
+    </g>
+    <path d="M128 140l-8 18 20-2z" fill="#4fd1c5"/>
+  </g>
+
+  <!-- Text -->
+  <g font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">
+    <text x="400" y="138" font-size="64" font-weight="700" fill="#ffffff">naukri-auto-pi</text>
+    <text x="402" y="184" font-size="26" fill="#cbd5e0">Keeps your Naukri profile fresh, every weekday, from a Raspberry Pi.</text>
+
+    <g font-size="18" font-weight="600">
+      <rect x="402" y="214" width="124" height="36" rx="18" fill="#ffffff" fill-opacity="0.1" stroke="#4fd1c5"/>
+      <text x="464" y="238" text-anchor="middle" fill="#e2e8f0">Playwright</text>
+      <rect x="538" y="214" width="150" height="36" rx="18" fill="#ffffff" fill-opacity="0.1" stroke="#4fd1c5"/>
+      <text x="613" y="238" text-anchor="middle" fill="#e2e8f0">systemd timer</text>
+      <rect x="700" y="214" width="104" height="36" rx="18" fill="#ffffff" fill-opacity="0.1" stroke="#4fd1c5"/>
+      <text x="752" y="238" text-anchor="middle" fill="#e2e8f0">Docker</text>
+      <rect x="816" y="214" width="92" height="36" rx="18" fill="#ffffff" fill-opacity="0.1" stroke="#4fd1c5"/>
+      <text x="862" y="238" text-anchor="middle" fill="#e2e8f0">ntfy</text>
+      <rect x="920" y="214" width="140" height="36" rx="18" fill="#ffffff" fill-opacity="0.1" stroke="#4fd1c5"/>
+      <text x="990" y="238" text-anchor="middle" fill="#e2e8f0">TypeScript</text>
+    </g>
+  </g>
+</svg>
