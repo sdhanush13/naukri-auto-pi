@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="470" viewBox="0 0 760 470" role="img" aria-labelledby="t d">
+  <title id="t">Example notifications</title>
+  <desc id="d">Illustration of the push notifications the job sends: a successful refresh, a dry run, and a manual login request.</desc>
+  <defs>
+    <filter id="sh" x="-5%" y="-10%" width="110%" height="130%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="760" height="470" rx="20" fill="#1a202c"/>
+  <g font-family="Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif">
+    <text x="40" y="52" font-size="22" font-weight="600" fill="#e2e8f0">Notifications</text>
+    <text x="720" y="52" font-size="16" fill="#a0aec0" text-anchor="end">Wed, 5 Nov</text>
+
+    <!-- success -->
+    <g transform="translate(30 76)" filter="url(#sh)">
+      <rect width="700" height="112" rx="16" fill="#2d3748"/>
+      <rect x="20" y="20" width="36" height="36" rx="10" fill="#38a169"/>
+      <text x="38" y="45" font-size="20" text-anchor="middle" fill="#fff">✓</text>
+      <text x="72" y="34" font-size="14" fill="#a0aec0">ntfy · naukri-…  ·  17:01</text>
+      <text x="72" y="60" font-size="19" font-weight="600" fill="#f7fafc">✅ Naukri profile refreshed</text>
+      <text x="72" y="86" font-size="15.5" fill="#cbd5e0">✅ resume uploaded (Resume.pdf), headline updated, summary updated;</text>
+      <text x="72" y="104" font-size="15.5" fill="#cbd5e0">profile shows updated today</text>
+    </g>
+
+    <!-- dry run -->
+    <g transform="translate(30 204)" filter="url(#sh)">
+      <rect width="700" height="94" rx="16" fill="#2d3748"/>
+      <rect x="20" y="20" width="36" height="36" rx="10" fill="#3182ce"/>
+      <text x="38" y="45" font-size="20" font-weight="700" text-anchor="middle" fill="#fff">i</text>
+      <text x="72" y="34" font-size="14" fill="#a0aec0">ntfy · naukri-…  ·  16:12</text>
+      <text x="72" y="60" font-size="19" font-weight="600" fill="#f7fafc">🧪 Naukri dry run</text>
+      <text x="72" y="84" font-size="15.5" fill="#cbd5e0">🧪 Dry run OK (saved session valid); nothing changed. Screenshot: /var/lib/…</text>
+    </g>
+
+    <!-- manual login -->
+    <g transform="translate(30 314)" filter="url(#sh)">
+      <rect width="700" height="112" rx="16" fill="#2d3748"/>
+      <rect x="20" y="20" width="36" height="36" rx="10" fill="#d69e2e"/>
+      <text x="38" y="45" font-size="20" font-weight="700" text-anchor="middle" fill="#1a202c">!</text>
+      <text x="72" y="34" font-size="14" fill="#a0aec0">ntfy · naukri-…  ·  09:00  ·  high priority</text>
+      <text x="72" y="60" font-size="19" font-weight="600" fill="#f7fafc">⚠️ Naukri: manual login needed</text>
+      <text x="72" y="86" font-size="15.5" fill="#cbd5e0">⚠️ Naukri asked for an OTP / verification code. On your laptop run</text>
+      <text x="72" y="104" font-size="15.5" fill="#cbd5e0">"npm run manual-login", then copy state.json to the Pi (see README).</text>
+    </g>
+
+    <text x="380" y="456" font-size="13" fill="#718096" text-anchor="middle">Illustration of the messages the job sends (ntfy shows the tag as an emoji before the title)</text>
+  </g>
+</svg>

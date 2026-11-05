@@ -269,6 +269,16 @@ that knowingly. Things to keep in mind:
 - Headed mode uses more memory (about 100-200 MB extra) than headless.
 
 **Notifications**
+
+<p align="center">
+  <img src="assets/notifications.svg" alt="Example notifications: profile refreshed, dry run, manual login needed" width="620">
+</p>
+
+An illustration of what arrives on your phone. The titles and texts are the real ones from
+`src/notify.ts`; the first is the message from an actual run. Failures (❌ "Naukri refresh
+failed") name the failed step and where its screenshot is, and come at high priority like
+the manual-login one.
+
 - **ntfy**: anyone who knows a public ntfy.sh topic can read it, so use a long random topic
   name. Subscribe in the ntfy app. For a protected topic or a self-hosted server with auth,
   store the token with `set-credentials.sh ntfy`.
