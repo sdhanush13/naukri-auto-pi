@@ -21,8 +21,11 @@ import type { Locator, Page } from 'playwright';
  *  - top card: "Profile last updated - 05Nov, 2026" (a date, not "Today").
  *  - headline: section `#lazyResumeHead`, edit `span.edit.icon` named "Edit resume headline",
  *    textarea `#resumeHeadlineTxt` (max 250, min 5 words), form `resumeHeadlineForm`.
- *  - summary: section `#lazyProfileSummary`, button "Edit profile summary", plain textarea
- *    (max 1000), Save + Cancel, and a "Delete" link we must never click.
+ *  - summary: section `#lazyProfileSummary`, button "Edit profile summary", textarea
+ *    `#profileSummaryTxt` in form `profileSummaryForm` (max 1000; verified live 2026-11-05),
+ *    Save + Cancel (`a.cancel-btn`), and a "Delete" link we must never click.
+ *  - sections below the fold are lazy-loaded: empty until scrolled into view
+ *    (`data-loaded="true"` once rendered). Verified live 2026-11-05.
  *  - the first save of a session may open a Pro upsell modal "Profile updated successfully".
  *  - OTP page: "Enter OTP", `.otp-container`, `.otpField`.
  */

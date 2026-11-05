@@ -67,10 +67,13 @@ export async function closeUpsellWhenShown(page: Page, log: Logger): Promise<voi
 
 async function editSection(
   page: Page,
+  sectionId: string,
   editButton: ReturnType<typeof sel.profile.headlineEdit>,
   input: ReturnType<typeof sel.profile.headlineInput>,
   value: string,
 ): Promise<void> {
+  // Lower profile sections are lazy-loaded: empty until scrolled into view (seen live Nov 2026).
+  await page.locator(`#${sectionId}`).scrollIntoViewIfNeeded().catch(() => undefined);
   await sel.visible(editButton).click();
   const box = sel.visible(input);
   await box.waitFor({ state: 'visible' });
@@ -82,11 +85,11 @@ async function editSection(
 }
 
 export async function updateHeadline(page: Page, headline: string): Promise<void> {
-  await editSection(page, sel.profile.headlineEdit(page), sel.profile.headlineInput(page), headline);
+  await editSection(page, 'lazyResumeHead', sel.profile.headlineEdit(page), sel.profile.headlineInput(page), headline);
 }
 
 export async function updateSummary(page: Page, summary: string): Promise<void> {
-  await editSection(page, sel.profile.summaryEdit(page), sel.profile.summaryInput(page), summary);
+  await editSection(page, 'lazyProfileSummary', sel.profile.summaryEdit(page), sel.profile.summaryInput(page), summary);
 }
 
 /**

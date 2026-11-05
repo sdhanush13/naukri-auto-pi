@@ -164,6 +164,10 @@ rm state.json                  # it is as sensitive as your password
 ```
 (On Windows PowerShell, use `Remove-Item state.json` for the last line.)
 
+Optional, before deleting it: to copy your current headline and summary into `config.json`,
+run `npx tsx scripts/read-profile-text.ts` on the laptop. It uses `state.json`, opens each
+editor only to read it (Cancel, never Save), and writes `profile-text.json`.
+
 ### 6. Dry run
 
 ```bash

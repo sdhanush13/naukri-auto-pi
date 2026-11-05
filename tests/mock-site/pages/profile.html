@@ -36,13 +36,16 @@
     <div class="headlineText">{{HEADLINE}}</div>
   </div>
 
-  <div class="card" id="lazyProfileSummary">
+  <!-- Like the live site: lower sections stay empty until scrolled into view. -->
+  <div style="height:3000px"></div>
+  <div class="card" id="lazyProfileSummary" data-plugin="lazyload"></div>
+  <template id="summaryTpl">
     <div class="widgetHead">
       <span class="widgetTitle">Profile summary</span>
-      <span class="edit icon" aria-label="Edit profile summary">editOneTheme</span>
+      <span class="edit icon" role="button" aria-label="Edit profile summary">editOneTheme</span>
     </div>
     <div class="summaryText">{{SUMMARY}}</div>
-  </div>
+  </template>
 
   <div class="modal" id="headlineModal" hidden>
     <form name="resumeHeadlineForm">
@@ -97,7 +100,14 @@
       });
     };
     wire('lazyResumeHead', 'headlineModal', '.headlineText');
-    wire('lazyProfileSummary', 'summaryModal', '.summaryText');
+    const lazy = document.getElementById('lazyProfileSummary');
+    new IntersectionObserver((entries, obs) => {
+      if (!entries.some((e) => e.isIntersecting)) return;
+      obs.disconnect();
+      lazy.append(document.getElementById('summaryTpl').content.cloneNode(true));
+      lazy.dataset.loaded = 'true';
+      wire('lazyProfileSummary', 'summaryModal', '.summaryText');
+    }).observe(lazy);
 
     document.getElementById('summaryDelete').addEventListener('click', (e) => {
       e.preventDefault();

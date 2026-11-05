@@ -20,3 +20,6 @@ config.json
 test-results/
 .tmp/
 coverage/
+
+# Output of scripts/read-profile-text.ts
+profile-text.json
