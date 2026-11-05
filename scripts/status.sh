@@ -23,8 +23,8 @@ echo "  systemd  : $(systemctl show -p Result --value $UNIT), exit status $(syst
 
 echo
 echo "== Schedule"
-systemctl list-timers naukri-refresher.timer --all --no-pager
-echo "  timer enabled: $(systemctl is-enabled naukri-refresher.timer 2>/dev/null || echo no)"
+systemctl list-timers naukri-refresher.timer --all --no-pager | cat
+echo "  timer enabled: $(systemctl is-enabled naukri-refresher.timer 2>/dev/null || true)"
 
 echo
 echo "== Last 3 artifacts ($STATE_DIR/artifacts)"
