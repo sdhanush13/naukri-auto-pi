@@ -118,12 +118,12 @@ export async function main(argv: string[], log: Logger = logger): Promise<ExitCo
           log.info({ attempt }, 'attempt starting');
           return runRefresh(cfg, { dryRun, log, chromiumSandbox });
         },
-        claimAttempt: () => claimDailyAttempt(cfg.stateDir),
+        claimAttempt: () => claimDailyAttempt(cfg.stateDir, new Date(), cfg.maxAttemptsPerDay),
         wait: (ms) => delay(ms),
         onRetry: (r, attempt) =>
           log.warn({ attempt, step: r.step, retryInSeconds: cfg.retryDelaySeconds }, 'attempt failed; retrying once'),
       },
-      { dryRun, retryDelayMs: cfg.retryDelaySeconds * 1000 },
+      { dryRun, retryDelayMs: cfg.retryDelaySeconds * 1000, maxAttemptsPerDay: cfg.maxAttemptsPerDay },
     );
     return await finish(result);
   } finally {

@@ -39,6 +39,12 @@ describe('daily cap', () => {
     expect(await claimDailyAttempt(dir, new Date(2026, 10, 6, 10, 0))).toBe(true);
   });
 
+  it('supports 3 runs a day with a cap of 4 (one spare for a retry)', async () => {
+    const day = new Date(2026, 10, 5, 9, 0);
+    for (let i = 0; i < 4; i++) expect(await claimDailyAttempt(dir, day, 4)).toBe(true);
+    expect(await claimDailyAttempt(dir, day, 4)).toBe(false);
+  });
+
   it('formats the local date', () => {
     expect(localDate(new Date(2026, 0, 9, 23, 59))).toBe('2026-01-09');
   });

@@ -51,7 +51,7 @@ systemd timer (Mon..Fri 10:00, Persistent=true)
        └─ Docker mode: scripts/docker-run.sh -> hardened container, runs as UID "naukri"
           Native mode: node dist/index.js as user "naukri"
                ├─ config.json validated (zod), resume checked (type, ≤ 2 MB)
-               ├─ lock file, daily cap (max 2 real attempts per day)
+               ├─ lock file, daily cap (maxAttemptsPerDay, default 2)
                ├─ attempt 1 ─ fail(1) ─ wait 60 s ─ attempt 2   (exit 2 is never retried)
                ├─ state.json (session) reused and saved, mode 600
                ├─ on failure: screenshot + trace -> artifacts/ (newest 10 kept)
@@ -70,7 +70,7 @@ systemd timer (Mon..Fri 10:00, Persistent=true)
 
 **Retry choice:** the app retries itself once, not via systemd `Restart=on-failure`. It behaves
 the same in Docker and native mode, is unit-tested, and never retries exit code 2. A small
-`attempts.json` counter caps real attempts at 2 per calendar day, whether they come from the
+`attempts.json` counter caps real attempts per calendar day (`maxAttemptsPerDay`), whether they come from the
 timer, a catch-up run after a power cut, or `run-now.sh`. Dry runs don't count.
 
 **Playwright version:** `playwright@1.64.1` is pinned exactly. The Docker base image
@@ -82,7 +82,7 @@ the same version.
 
 ## Pi prerequisites
 
-- Raspberry Pi 4 or 5, 4 GB+ RAM, **64-bit** Raspberry Pi OS (Bookworm):
+- Raspberry Pi 4 or 5, 4 GB+ RAM, **64-bit** Raspberry Pi OS (Bookworm or Trixie):
   ```bash
   uname -m        # must print: aarch64   (armv7l = 32-bit OS - reinstall with the 64-bit image)
   ```
@@ -98,7 +98,7 @@ the same version.
 - **Docker** (default mode): install Docker Engine for Debian (see the
   [Docker docs](https://docs.docker.com/engine/install/debian/)). Don't add any user to the
   `docker` group for this; the service runs `docker` as root.
-- `python3` and `systemd-creds` (both included in Raspberry Pi OS Bookworm).
+- `python3` and `systemd-creds` (both included in Raspberry Pi OS Bookworm and Trixie).
 
 On a laptop (for `manual-login` and `deploy.sh`) you need Node 20+ and Git. On Windows, use Git
 Bash for the `.sh` scripts.
@@ -208,6 +208,7 @@ so typos don't pass silently.
 | `notify` | `{"provider":"ntfy","topic":...,"server"?}`, `{"provider":"telegram","chatId":...}` or `{"provider":"none"}` |
 | `healthchecksUrl` | optional; pinged with `/start`, success and `/fail`. Set the check's period to match your schedule (for example, cron `0 10 * * 1-5`, IST, grace 1 h). |
 | `retryDelaySeconds` | 0-900, default 60 |
+| `maxAttemptsPerDay` | 1-6, default 2. A hard cap on real attempts per day, counting all runs and retries. For N scheduled runs use N + 1, for example `"schedule": "Mon..Fri 09,13,17:00"` with `4`. More runs a day look more automated to Naukri and Akamai. |
 | `browserMode` | `"headless"` (default) or `"headed"`. See [Browser mode](#browser-mode). |
 | `timeouts` | optional `{navigationMs, actionMs, uploadMs}`; defaults 45 s / 20 s / 90 s (the Pi is slower than a laptop) |
 
@@ -248,7 +249,7 @@ that knowingly. Things to keep in mind:
 | Last result, next run, newest artifacts | `bash /opt/naukri-refresher/scripts/status.sh` |
 | Deploy a code change from the laptop | `PI=pi@raspberrypi.local bash scripts/deploy.sh` |
 
-A real `run-now.sh` counts toward the 2-attempts-per-day cap. If the timer already used both,
+A real `run-now.sh` counts toward the daily cap (`maxAttemptsPerDay`). If scheduled runs already used it up,
 the run stops with step `daily-cap`.
 
 ---

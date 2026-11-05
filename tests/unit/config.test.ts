@@ -18,6 +18,13 @@ describe('parseConfig', () => {
     expect(cfg.browserMode).toBe('headless'); // headed is an explicit opt-in
   });
 
+  it('caps maxAttemptsPerDay at 1-6, default 2', () => {
+    expect(parseConfig(base).maxAttemptsPerDay).toBe(2);
+    expect(parseConfig({ ...base, maxAttemptsPerDay: 4 }).maxAttemptsPerDay).toBe(4);
+    expect(() => parseConfig({ ...base, maxAttemptsPerDay: 0 })).toThrow(ConfigError);
+    expect(() => parseConfig({ ...base, maxAttemptsPerDay: 7 })).toThrow(ConfigError);
+  });
+
   it('accepts only the two browser modes', () => {
     expect(parseConfig({ ...base, browserMode: 'headed' }).browserMode).toBe('headed');
     expect(() => parseConfig({ ...base, browserMode: 'stealth' })).toThrow(ConfigError);

@@ -51,6 +51,11 @@ export const configSchema = z.strictObject({
   baseUrl: z.url().default('https://www.naukri.com'),
   retryDelaySeconds: z.number().int().min(0).max(900).default(60),
   /**
+   * Hard cap on real attempts per calendar day (all runs + retries together). Default 2 = one
+   * daily run plus its retry. For N scheduled runs a day, N + 1 leaves room for one retry.
+   */
+  maxAttemptsPerDay: z.number().int().min(1).max(6).default(2),
+  /**
    * "headless" (default) or "headed": a normal visible Chromium on a virtual X display (Xvfb).
    * Opt-in only. Naukri's bot protection (Akamai) answers headless Chromium with "Access Denied";
    * headed mode is an unmodified browser, but using it to get past that block is the owner's

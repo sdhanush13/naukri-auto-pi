@@ -6,7 +6,10 @@ export const ExitCode = {
 } as const;
 export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode];
 
-/** Hard cap: never more than this many real (non-dry-run) attempts per calendar day. */
+/** Attempts within one run: the first try plus at most one retry. */
+export const MAX_ATTEMPTS_PER_RUN = 2;
+
+/** Default cap on real (non-dry-run) attempts per calendar day; config "maxAttemptsPerDay". */
 export const MAX_ATTEMPTS_PER_DAY = 2;
 
 /** A failure in a named step of the flow (exit code 1, eligible for the single retry). */
@@ -42,7 +45,7 @@ export function shouldRetry(
   attempt: number,
   opts: { dryRun: boolean; maxAttempts?: number },
 ): boolean {
-  const max = opts.maxAttempts ?? MAX_ATTEMPTS_PER_DAY;
+  const max = opts.maxAttempts ?? MAX_ATTEMPTS_PER_RUN;
   return code === ExitCode.Failure && !opts.dryRun && attempt < max;
 }
 
