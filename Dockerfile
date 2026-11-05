@@ -20,4 +20,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 # Overridden at runtime with --user <naukri uid>:<naukri gid>; never root.
 USER pwuser
-ENTRYPOINT ["node", "/app/dist/index.js"]
+# xvfb-run (shipped in the Playwright image) provides a virtual display for browserMode "headed".
+# It is harmless in headless mode. Its socket, lock and auth files go to the /tmp tmpfs, and it
+# passes through the app's exit code (0/1/2).
+ENTRYPOINT ["xvfb-run", "--auto-servernum", "--server-args=-screen 0 1366x900x24 -nolisten tcp", "node", "/app/dist/index.js"]

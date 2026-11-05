@@ -16,7 +16,8 @@ Type=oneshot
 User=naukri
 Group=naukri
 WorkingDirectory=/opt/naukri-refresher
-ExecStart=/usr/bin/env node /opt/naukri-refresher/dist/index.js
+# xvfb-run gives Chromium a virtual display for browserMode "headed" (harmless when headless).
+ExecStart=/usr/bin/xvfb-run --auto-servernum "--server-args=-screen 0 1366x900x24 -nolisten tcp" /usr/bin/env node /opt/naukri-refresher/dist/index.js
 ExecStopPost=+/bin/rm -f /run/naukri-refresher.oneshot.env
 EnvironmentFile=-/run/naukri-refresher.oneshot.env
 Environment=NODE_ENV=production

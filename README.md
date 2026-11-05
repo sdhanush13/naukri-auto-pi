@@ -208,7 +208,27 @@ so typos don't pass silently.
 | `notify` | `{"provider":"ntfy","topic":...,"server"?}`, `{"provider":"telegram","chatId":...}` or `{"provider":"none"}` |
 | `healthchecksUrl` | optional; pinged with `/start`, success and `/fail`. Set the check's period to match your schedule (for example, cron `0 10 * * 1-5`, IST, grace 1 h). |
 | `retryDelaySeconds` | 0-900, default 60 |
+| `browserMode` | `"headless"` (default) or `"headed"`. See [Browser mode](#browser-mode). |
 | `timeouts` | optional `{navigationMs, actionMs, uploadMs}`; defaults 45 s / 20 s / 90 s (the Pi is slower than a laptop) |
+
+### Browser mode
+
+On 2026-11-05 the first dry run from the Pi got **"Access Denied"** from Naukri's CDN bot
+protection (Akamai, `errors.edgesuite.net`). This happened before any login, so it wasn't the
+account or the session. Akamai refuses headless Chromium.
+
+`"browserMode": "headed"` runs a normal, visible Chromium on a virtual X display (Xvfb, via
+`xvfb-run` in the Docker entrypoint and the native unit). It's the same unmodified Playwright
+Chromium, with no stealth plugins, no user-agent or fingerprint changes and no proxies. But its
+purpose is to get past a block that Naukri deliberately set up, which goes against the original
+"no anti-detection" rule and very likely Naukri's terms. The account owner chose to accept
+that knowingly. Things to keep in mind:
+- Akamai can tighten its checks at any time. Then runs fail at step `session` with the same
+  "Access Denied" screenshot. Don't escalate further (stealth plugins, spoofing, proxies); fall
+  back to a weekday reminder and a manual upload.
+- If Naukri flags the account as automated, stop the timer
+  (`sudo systemctl disable --now naukri-refresher.timer`).
+- Headed mode uses more memory (about 100-200 MB extra) than headless.
 
 **Notifications**
 - **ntfy**: anyone who knows a public ntfy.sh topic can read it, so use a long random topic

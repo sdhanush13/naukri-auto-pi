@@ -50,6 +50,13 @@ export const configSchema = z.strictObject({
   /** Overridable only so tests can point the flow at the local mock site. */
   baseUrl: z.url().default('https://www.naukri.com'),
   retryDelaySeconds: z.number().int().min(0).max(900).default(60),
+  /**
+   * "headless" (default) or "headed": a normal visible Chromium on a virtual X display (Xvfb).
+   * Opt-in only. Naukri's bot protection (Akamai) answers headless Chromium with "Access Denied";
+   * headed mode is an unmodified browser, but using it to get past that block is the owner's
+   * deliberate, accepted trade-off (see README, "Browser mode").
+   */
+  browserMode: z.enum(['headless', 'headed']).default('headless'),
   timeouts: z
     .strictObject({
       navigationMs: z.number().int().positive().default(45_000),

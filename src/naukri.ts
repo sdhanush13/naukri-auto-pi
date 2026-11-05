@@ -55,9 +55,13 @@ export async function uploadResume(page: Page, cfg: Config, log: Logger, now: Da
 export async function closeUpsellWhenShown(page: Page, log: Logger): Promise<void> {
   await page.addLocatorHandler(sel.visible(sel.upsell.modal(page)), async () => {
     log.info('closing Naukri upsell popup');
-    const close = sel.visible(sel.upsell.close(page));
-    if (await close.isVisible()) await close.click();
-    else await page.keyboard.press('Escape');
+    try {
+      const close = sel.visible(sel.upsell.close(page));
+      if (await close.isVisible()) await close.click({ timeout: 5_000 });
+      else await page.keyboard.press('Escape');
+    } catch {
+      // The popup may vanish (or the page reload) mid-click; the blocked action simply retries.
+    }
   });
 }
 
@@ -124,7 +128,11 @@ export async function runRefresh(cfg: Config, opts: RunOptions): Promise<Attempt
   const done: string[] = [];
 
   try {
-    browser = await chromium.launch({ headless: true, chromiumSandbox: opts.chromiumSandbox });
+    const headless = cfg.browserMode !== 'headed';
+    if (!headless && process.platform === 'linux' && !process.env.DISPLAY) {
+      throw new StepError('launch', 'browserMode "headed" needs a display; run under xvfb-run (Docker image and native unit do this)');
+    }
+    browser = await chromium.launch({ headless, chromiumSandbox: opts.chromiumSandbox });
     context = await browser.newContext({
       storageState: await loadStorageState(statePath(cfg.stateDir)),
       viewport: { width: 1366, height: 900 },

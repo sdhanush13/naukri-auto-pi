@@ -91,6 +91,8 @@ else
   cd "$APP_DIR"
   npm ci --no-audit --no-fund
   npm run build
+  info "installing Xvfb (virtual display for browserMode \"headed\")"
+  apt-get install -y --no-install-recommends xvfb xauth >/dev/null
   info "installing Chromium (arm64) + system libraries"
   PLAYWRIGHT_BROWSERS_PATH="$APP_DIR/ms-playwright" npx playwright install --with-deps chromium \
     || die "Playwright could not install Chromium for this OS/arch; use --mode docker"

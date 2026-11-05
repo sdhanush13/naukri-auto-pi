@@ -15,6 +15,12 @@ describe('parseConfig', () => {
     expect(cfg.notify).toEqual({ provider: 'none' });
     expect(cfg.timeouts).toEqual({ navigationMs: 45_000, actionMs: 20_000, uploadMs: 90_000 });
     expect(cfg.retryDelaySeconds).toBe(60);
+    expect(cfg.browserMode).toBe('headless'); // headed is an explicit opt-in
+  });
+
+  it('accepts only the two browser modes', () => {
+    expect(parseConfig({ ...base, browserMode: 'headed' }).browserMode).toBe('headed');
+    expect(() => parseConfig({ ...base, browserMode: 'stealth' })).toThrow(ConfigError);
   });
 
   // "one two three four " padded to an exact length, so the 5-word rule is met.
