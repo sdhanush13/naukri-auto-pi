@@ -25,11 +25,40 @@ async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
-export async function uploadResume(page: Page, cfg: Config): Promise<void> {
+export async function uploadResume(page: Page, cfg: Config, log: Logger, now: Date = new Date()): Promise<void> {
   const input = sel.profile.resumeInput(page).first();
   await input.waitFor({ state: 'attached' });
+  // Naukri has no confirmation step: the resume card flips to "Uploaded on <today>".
+  // If it already said today (second run of the day), this passes at once; the reload in
+  // verifyUpdatedToday still confirms what the server stored.
+  const uploadResponse = page
+    .waitForResponse((r) => r.request().method() === 'POST' && /upload|attach|resume|\/cv\b/i.test(r.url()), {
+      timeout: cfg.timeouts.uploadMs,
+    })
+    .then(
+      (r) => r.ok(),
+      () => undefined,
+    );
   await input.setInputFiles(cfg.resumePath);
-  await sel.visible(sel.profile.uploadSuccess(page)).waitFor({ state: 'visible', timeout: cfg.timeouts.uploadMs });
+  await sel.visible(sel.profile.uploadDone(page, now)).waitFor({ state: 'visible', timeout: cfg.timeouts.uploadMs });
+  // Also let the upload request itself finish before anything reloads the page. The URL
+  // match is a heuristic, so a mismatch only warns; the reload check is the real verdict.
+  const ok = await uploadResponse;
+  if (ok === false) log.warn('an upload-like request returned an error status');
+  if (ok === undefined) log.warn('no upload request recognised; relying on the profile check');
+}
+
+/**
+ * The first save of a session can open a "Go Pro" upsell ("Profile updated successfully").
+ * Playwright runs this handler whenever that overlay blocks an action, then continues.
+ */
+export async function closeUpsellWhenShown(page: Page, log: Logger): Promise<void> {
+  await page.addLocatorHandler(sel.visible(sel.upsell.modal(page)), async () => {
+    log.info('closing Naukri upsell popup');
+    const close = sel.visible(sel.upsell.close(page));
+    if (await close.isVisible()) await close.click();
+    else await page.keyboard.press('Escape');
+  });
 }
 
 async function editSection(
@@ -56,14 +85,23 @@ export async function updateSummary(page: Page, summary: string): Promise<void> 
   await editSection(page, sel.profile.summaryEdit(page), sel.profile.summaryInput(page), summary);
 }
 
-/** Reload so we check what Naukri stored, not what the page optimistically shows. */
-export async function verifyUpdatedToday(page: Page, cfg: Config, log: Logger): Promise<void> {
+/**
+ * Reload so we check what Naukri stored, not what the page optimistically shows.
+ * Required: the resume card says "Uploaded on <today>". The "Profile last updated" date
+ * alone is not enough proof (a headline edit also sets it), so it is only logged.
+ */
+export async function verifyUpdatedToday(page: Page, cfg: Config, log: Logger, now: Date = new Date()): Promise<void> {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await sel.visible(sel.profile.marker(page)).waitFor({ state: 'visible', timeout: cfg.timeouts.navigationMs });
-  await sel.visible(sel.profile.lastUpdatedToday(page)).waitFor({ state: 'visible' });
+  // Lazy sections render after DOMContentLoaded; the auto-wait covers that.
+  await sel.visible(sel.profile.uploadedOn(page, now)).waitFor({ state: 'visible', timeout: cfg.timeouts.navigationMs });
+  if (!(await sel.visible(sel.profile.lastUpdated(page, now)).isVisible())) {
+    log.warn('"Profile last updated" does not show today yet');
+  }
   const file = basename(cfg.resumePath);
-  if (!(await sel.visible(sel.profile.fileName(page, file)).isVisible())) {
-    // Naukri sometimes truncates or renames the displayed filename; "updated today" is the real check.
+  const stem = file.replace(/\.[^.]+$/, '');
+  // Naukri shows the uploaded file's own name, sometimes with "-1" appended on re-upload.
+  if (!(await sel.visible(sel.profile.fileName(page, stem)).isVisible())) {
     log.warn({ file }, 'uploaded filename not visible on profile page');
   }
 }
@@ -114,9 +152,10 @@ export async function runRefresh(cfg: Config, opts: RunOptions): Promise<Attempt
     // Tracing starts only after login, so the trace never records the password being typed.
     await context.tracing.start({ screenshots: true, snapshots: true });
     tracing = true;
+    await closeUpsellWhenShown(page, log);
 
     current = 'upload';
-    await step('upload', () => uploadResume(page!, cfg));
+    await step('upload', () => uploadResume(page!, cfg, log));
     done.push(`resume uploaded (${basename(cfg.resumePath)})`);
 
     if (cfg.headline) {

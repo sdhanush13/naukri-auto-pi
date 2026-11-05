@@ -3,81 +3,127 @@
 <head>
   <meta charset="utf-8">
   <title>Mock Naukri - Profile</title>
-  <style>[hidden]{display:none!important}.edit{cursor:pointer}</style>
+  <style>
+    [hidden]{display:none!important}
+    .edit{cursor:pointer}
+    .modal{position:fixed;inset:10% 20%;background:#fff;border:1px solid #999;padding:1em}
+    .upsell{position:fixed;inset:0;background:rgba(0,0,0,.6);color:#fff;z-index:10;padding:3em}
+  </style>
 </head>
 <body>
-  <h1>My profile</h1>
-  <p class="lastUpdated">Profile last updated - <span>{{UPDATED}}</span></p>
+  <!-- Mirrors the live structure documented in src/selectors.ts (Nov 2026). -->
+  <div class="topCard">
+    <h1>Test User</h1>
+    <p class="lastUpdated">Profile last updated - <span>{{UPDATED}}</span></p>
+  </div>
 
-  <section class="resumeSection">
-    <div class="widgetHead"><span class="widgetTitle">Resume</span></div>
-    <div class="fileName">{{FILENAME}}</div>
-    <input type="file" id="attachCV" accept=".pdf,.doc,.docx" style="display:none">
-    <label for="attachCV">Update resume</label>
-    <div id="toast" role="status" hidden></div>
-  </section>
+  <div class="card resume" id="lazyAttachCV">
+    <span class="widgetTitle">Resume</span>
+    <div class="uploadContainer">
+      <div class="truncate exten">{{FILENAME}}</div>
+      <div class="updateOn">Uploaded on <span>{{UPLOADED_ON}}</span></div>
+      <input type="file" id="attachCV" accept=".pdf,.doc,.docx" style="display:none">
+      <button type="button" class="dummyUpload">Update resume</button>
+      <p class="uploadErr" hidden></p>
+    </div>
+  </div>
 
-  <section class="resumeHeadline">
+  <div class="card" id="lazyResumeHead">
     <div class="widgetHead">
       <span class="widgetTitle">Resume headline</span>
-      <span class="edit" role="button" aria-label="Edit resume headline">✎</span>
+      <span class="edit icon" aria-label="Edit resume headline">editOneTheme</span>
     </div>
     <div class="headlineText">{{HEADLINE}}</div>
-  </section>
+  </div>
 
-  <section class="profileSummary">
+  <div class="card" id="lazyProfileSummary">
     <div class="widgetHead">
       <span class="widgetTitle">Profile summary</span>
-      <span class="edit" role="button" aria-label="Edit profile summary">✎</span>
+      <span class="edit icon" aria-label="Edit profile summary">editOneTheme</span>
     </div>
     <div class="summaryText">{{SUMMARY}}</div>
-  </section>
-
-  <div role="dialog" id="headlineDialog" aria-label="Resume headline" hidden>
-    <textarea id="resumeHeadlineTxt"></textarea>
-    <button data-field="headline">Save</button>
   </div>
-  <div role="dialog" id="summaryDialog" aria-label="Profile summary" hidden>
-    <textarea id="profileSummaryTxt"></textarea>
-    <button data-field="summary">Save</button>
+
+  <div class="modal" id="headlineModal" hidden>
+    <form name="resumeHeadlineForm">
+      <textarea id="resumeHeadlineTxt" maxlength="250"></textarea>
+      <button type="button" class="improve">Improve with AI</button>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+
+  <div class="modal" id="summaryModal" hidden>
+    <a href="#" class="delete" id="summaryDelete">Delete</a>
+    <form name="summaryForm">
+      <textarea maxlength="1000"></textarea>
+      <span class="fue__chars-count">0/1000</span>
+      <button type="button" class="cancel">Cancel</button>
+      <button type="submit">Save</button>
+    </form>
+  </div>
+
+  <div class="upsell" id="upsell" hidden>
+    <p>Profile updated successfully</p>
+    <p>Go Pro to get noticed by more recruiters!</p>
+    <button type="button" class="crossIcon" aria-label="Close">×</button>
   </div>
 
   <script>
     const uploadFails = {{UPLOADFAIL}};
-    const post = (url, data) => fetch(url, {
+    let upsellShown = false;
+    const post = async (url, data) => (await fetch(url, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data),
-    });
+    })).json();
 
     document.getElementById('attachCV').addEventListener('change', async (e) => {
       const file = e.target.files[0];
-      const toast = document.getElementById('toast');
-      if (uploadFails) { toast.textContent = 'Something went wrong, please try again'; toast.hidden = false; return; }
-      await post('/api/upload', { name: file.name, size: file.size });
-      document.querySelector('.fileName').textContent = file.name;
-      document.querySelector('.lastUpdated span').textContent = 'Today';
-      toast.textContent = 'Resume has been successfully uploaded.';
-      toast.hidden = false;
+      if (uploadFails) {
+        const err = document.querySelector('.uploadErr');
+        err.textContent = 'Something went wrong, please try again';
+        err.hidden = false;
+        return;
+      }
+      const r = await post('/api/resume/upload', { name: file.name, size: file.size });
+      document.querySelector('.exten').textContent = file.name;
+      document.querySelector('.updateOn span').textContent = r.uploadedOn;
+      document.querySelector('.lastUpdated span').textContent = r.updated;
     });
 
-    const wire = (sectionSel, dialogId, textareaId, textSel) => {
-      document.querySelector(sectionSel + ' .edit').addEventListener('click', () => {
-        document.getElementById(textareaId).value = document.querySelector(textSel).textContent;
-        document.getElementById(dialogId).hidden = false;
+    const wire = (sectionId, modalId, textSel) => {
+      document.querySelector('#' + sectionId + ' .edit').addEventListener('click', () => {
+        const modal = document.getElementById(modalId);
+        modal.querySelector('textarea').value = document.querySelector(textSel).textContent;
+        modal.hidden = false;
       });
     };
-    wire('.resumeHeadline', 'headlineDialog', 'resumeHeadlineTxt', '.headlineText');
-    wire('.profileSummary', 'summaryDialog', 'profileSummaryTxt', '.summaryText');
+    wire('lazyResumeHead', 'headlineModal', '.headlineText');
+    wire('lazyProfileSummary', 'summaryModal', '.summaryText');
 
-    document.querySelectorAll('[role=dialog] button').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const field = btn.dataset.field;
-        const dialog = btn.closest('[role=dialog]');
-        const value = dialog.querySelector('textarea').value;
-        await post('/api/profile', { field, value });
-        document.querySelector(field === 'headline' ? '.headlineText' : '.summaryText').textContent = value;
-        document.querySelector('.lastUpdated span').textContent = 'Today';
-        dialog.hidden = true;
+    document.getElementById('summaryDelete').addEventListener('click', (e) => {
+      e.preventDefault();
+      post('/api/profile', { field: 'summary', value: '' });
+      document.querySelector('.summaryText').textContent = '';
+    });
+
+    const save = (modalId, field, textSel) => {
+      const modal = document.getElementById(modalId);
+      modal.querySelector('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const value = modal.querySelector('textarea').value;
+        const r = await post('/api/profile', { field, value });
+        document.querySelector(textSel).textContent = value;
+        document.querySelector('.lastUpdated span').textContent = r.updated;
+        modal.hidden = true;
+        if (!upsellShown) { upsellShown = true; document.getElementById('upsell').hidden = false; }
       });
+      const cancel = modal.querySelector('.cancel');
+      if (cancel) cancel.addEventListener('click', () => { modal.hidden = true; });
+    };
+    save('headlineModal', 'headline', '.headlineText');
+    save('summaryModal', 'summary', '.summaryText');
+
+    document.querySelector('#upsell .crossIcon').addEventListener('click', () => {
+      document.getElementById('upsell').hidden = true;
     });
   </script>
 </body>

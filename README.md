@@ -272,8 +272,11 @@ credentials, and use `manual-login` only when Naukri asks for an OTP.
 All selectors are in [`src/selectors.ts`](src/selectors.ts). They use `getByRole` /
 `getByPlaceholder` / `getByText` first, with CSS ids as fallbacks.
 
-The selectors were written without access to a live logged-in Naukri page. Confirm them with
-codegen before the first real run, then again whenever a step starts failing.
+The selectors are cross-checked against several public Naukri automation projects (Nov 2026).
+One of them documents the profile editors as verified on the live site on 2026-10-31; sources
+and observed quirks are listed at the top of `selectors.ts`. They have not yet been checked
+against your own account. The first dry run and real run are that check. If a step fails, or
+whenever Naukri changes its layout:
 
 1. Find the failing step (notification, `status.sh`). Copy the artifacts to your laptop:
    ```bash

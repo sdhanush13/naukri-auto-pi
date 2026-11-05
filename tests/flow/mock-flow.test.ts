@@ -66,6 +66,7 @@ describe('flow against mock Naukri', () => {
     expect(site.state.uploads).toEqual([{ name: 'My_Resume.pdf', size: 1024 }]);
     expect(site.state.headline).toBe(HEADLINE);
     expect(site.state.summary).toBe(SUMMARY);
+    expect(site.state.deletes).toBe(0); // never touched the summary "Delete" link
 
     const statePath = join(dir, 'state.json');
     const saved = JSON.parse(await readFile(statePath, 'utf8')) as { cookies: { name: string }[] };

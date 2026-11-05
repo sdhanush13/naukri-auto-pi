@@ -30,8 +30,18 @@ export const configSchema = z.strictObject({
     .refine((p) => RESUME_EXTENSIONS.includes(extname(p).toLowerCase()), {
       message: 'resumePath must end in .pdf, .doc or .docx',
     }),
-  headline: z.string().trim().min(1).max(250, 'headline must be at most 250 characters').optional(),
-  summary: z.string().trim().min(50, 'summary must be at least 50 characters').optional(),
+  headline: z
+    .string()
+    .trim()
+    .max(250, 'headline must be at most 250 characters')
+    .refine((s) => s.split(/\s+/).filter(Boolean).length >= 5, 'headline must have at least 5 words (Naukri rule)')
+    .optional(),
+  summary: z
+    .string()
+    .trim()
+    .min(50, 'summary must be at least 50 characters')
+    .max(1000, 'summary must be at most 1000 characters (Naukri limit)')
+    .optional(),
   /** systemd OnCalendar expression; applied to the timer by scripts/install.sh. */
   schedule: z.string().trim().min(1).default('Mon..Fri 10:00'),
   notify: notifySchema.default({ provider: 'none' }),

@@ -17,18 +17,28 @@ describe('parseConfig', () => {
     expect(cfg.retryDelaySeconds).toBe(60);
   });
 
+  // "one two three four " padded to an exact length, so the 5-word rule is met.
+  const words = (len: number): string => `one two three four ${'x'.repeat(len - 19)}`;
+
   it('accepts a headline of exactly 250 chars and rejects 251', () => {
-    expect(parseConfig({ ...base, headline: 'a'.repeat(250) }).headline).toHaveLength(250);
-    expect(() => parseConfig({ ...base, headline: 'a'.repeat(251) })).toThrow(/at most 250/);
+    expect(parseConfig({ ...base, headline: words(250) }).headline).toHaveLength(250);
+    expect(() => parseConfig({ ...base, headline: words(251) })).toThrow(/at most 250/);
   });
 
   it('measures the headline after trimming', () => {
-    expect(parseConfig({ ...base, headline: `  ${'a'.repeat(250)}  ` }).headline).toHaveLength(250);
+    expect(parseConfig({ ...base, headline: `  ${words(250)}  ` }).headline).toHaveLength(250);
   });
 
-  it('requires a summary of at least 50 chars', () => {
+  it('requires at least 5 words in the headline (Naukri rule)', () => {
+    expect(() => parseConfig({ ...base, headline: 'Senior TypeScript engineer, Bengaluru' })).toThrow(/5 words/);
+    expect(parseConfig({ ...base, headline: 'Senior TypeScript engineer in Bengaluru' }).headline).toBeTruthy();
+  });
+
+  it('requires a summary of 50-1000 chars', () => {
     expect(() => parseConfig({ ...base, summary: 'x'.repeat(49) })).toThrow(/at least 50/);
     expect(parseConfig({ ...base, summary: 'x'.repeat(50) }).summary).toHaveLength(50);
+    expect(parseConfig({ ...base, summary: 'x'.repeat(1000) }).summary).toHaveLength(1000);
+    expect(() => parseConfig({ ...base, summary: 'x'.repeat(1001) })).toThrow(/at most 1000/);
   });
 
   it('only accepts pdf/doc/docx resume paths', () => {

@@ -25,7 +25,25 @@ export interface MockState {
   summary: string;
   updatedToday: boolean;
   fileName: string;
+  /** Times the summary "Delete" link was used; the flow must never click it. */
+  deletes: number;
 }
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const pad = (n: number): string => String(n).padStart(2, '0');
+/** Top card format: "05Nov, 2026". */
+export const topCardDate = (d: Date): string => `${pad(d.getDate())}${MONTHS[d.getMonth()]}, ${d.getFullYear()}`;
+/** Resume card format: "Nov 05, 2026". */
+export const resumeCardDate = (d: Date): string => `${MONTHS[d.getMonth()]} ${pad(d.getDate())}, ${d.getFullYear()}`;
+const OLD = new Date(2026, 9, 12);
+const FRESH = {
+  logins: 0,
+  headline: 'Old headline',
+  summary: 'Old summary text that is long enough to be a realistic profile summary.',
+  updatedToday: false,
+  fileName: 'old-resume.pdf',
+  deletes: 0,
+};
 
 const PAGES = join(dirname(fileURLToPath(import.meta.url)), 'pages');
 const page = (name: string): string => readFileSync(join(PAGES, name), 'utf8');
@@ -52,15 +70,7 @@ export interface MockSite {
 }
 
 export async function startMockSite(): Promise<MockSite> {
-  const state: MockState = {
-    mode: 'normal',
-    logins: 0,
-    uploads: [],
-    headline: 'Old headline',
-    summary: 'Old summary text that is long enough to be a realistic profile summary.',
-    updatedToday: false,
-    fileName: 'old-resume.pdf',
-  };
+  const state: MockState = { mode: 'normal', uploads: [], ...FRESH };
 
   const send = (res: ServerResponse, status: number, html: string, headers: Record<string, string> = {}): void => {
     res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', ...headers });
@@ -98,24 +108,26 @@ export async function startMockSite(): Promise<MockSite> {
           .replace('{{HEADLINE}}', esc(state.headline))
           .replace('{{SUMMARY}}', esc(state.summary))
           .replace('{{FILENAME}}', esc(state.fileName))
-          .replace('{{UPDATED}}', state.updatedToday ? 'Today' : '12 Oct 2026')
+          .replace('{{UPDATED}}', topCardDate(state.updatedToday ? new Date() : OLD))
+          .replace('{{UPLOADED_ON}}', resumeCardDate(state.uploads.length ? new Date() : OLD))
           .replace('{{UPLOADFAIL}}', state.mode === 'uploadfail' ? 'true' : 'false');
         return send(res, 200, html);
       }
-      if (req.method === 'POST' && url.pathname === '/api/upload') {
+      if (req.method === 'POST' && url.pathname === '/api/resume/upload') {
         if (!loggedIn) return json(res, 401, {});
         const { name, size } = JSON.parse(await body(req)) as { name: string; size: number };
         state.uploads.push({ name, size });
         state.fileName = name;
         state.updatedToday = true;
-        return json(res, 200, { ok: true });
+        return json(res, 200, { uploadedOn: resumeCardDate(new Date()), updated: topCardDate(new Date()) });
       }
       if (req.method === 'POST' && url.pathname === '/api/profile') {
         if (!loggedIn) return json(res, 401, {});
         const { field, value } = JSON.parse(await body(req)) as { field: 'headline' | 'summary'; value: string };
+        if (field === 'summary' && value === '') state.deletes += 1;
         state[field] = value;
         state.updatedToday = true;
-        return json(res, 200, { ok: true });
+        return json(res, 200, { updated: topCardDate(new Date()) });
       }
       send(res, 404, 'not found');
     } catch (err) {
@@ -130,15 +142,7 @@ export async function startMockSite(): Promise<MockSite> {
     baseUrl: `http://127.0.0.1:${port}`,
     state,
     reset(mode: MockMode = 'normal') {
-      Object.assign(state, {
-        mode,
-        logins: 0,
-        uploads: [],
-        headline: 'Old headline',
-        summary: 'Old summary text that is long enough to be a realistic profile summary.',
-        updatedToday: false,
-        fileName: 'old-resume.pdf',
-      });
+      Object.assign(state, { mode, uploads: [], ...FRESH });
     },
     close: () => new Promise((r) => server.close(() => r())),
   };
