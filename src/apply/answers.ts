@@ -22,7 +22,17 @@ export const answersSchema = z.strictObject({
     .default([]),
   /** Years per skill, for "How many years of experience do you have in X?". */
   skills: z.record(z.string().trim().min(1), z.number().min(0).max(40)).default({}),
+  /** Optional (YYYY-MM-DD). If set, "What is your age?" is answered with your age on that day. */
+  dateOfBirth: z.iso.date().optional(),
 });
+
+/** Whole years between dateOfBirth (YYYY-MM-DD) and now, in local time. */
+export function ageOn(dateOfBirth: string, now: Date): number {
+  const [y, m, d] = dateOfBirth.split('-').map(Number) as [number, number, number];
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age--;
+  return age;
+}
 
 export type Answers = z.output<typeof answersSchema>;
 
@@ -112,19 +122,51 @@ function skillYears(q: Question, answers: Answers): string | null {
   return null;
 }
 
-export async function resolveAnswer(q: Question, answers: Answers, ask?: AskModel): Promise<Resolution> {
-  const text = norm(q.text);
-  for (const rule of answers.rules) {
-    if (rule.match.some((m) => text.includes(norm(m)))) {
-      const fitted = fitAnswer(q, rule.answer);
-      if (fitted !== null) return { ok: true, answer: fitted, source: 'rule' };
-      return { ok: false, reason: `saved answer "${rule.answer}" fits none of the options` };
-    }
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A rule phrase matches when every one of its words occurs in the question as a whole word, in
+ * any order: "current ctc" matches "What is your current annual CTC?". Put specific rules
+ * ("current ctc lakhs") before general ones ("current ctc"): the first match wins.
+ */
+export function phraseMatches(phrase: string, question: string): boolean {
+  const text = ` ${norm(question)} `;
+  return norm(phrase)
+    .split(' ')
+    .every((w) => new RegExp(`(^|[^a-z0-9])${escapeRe(w)}([^a-z0-9]|$)`).test(text));
+}
+
+export async function resolveAnswer(
+  q: Question,
+  answers: Answers,
+  ask?: AskModel,
+  now: Date = new Date(),
+): Promise<Resolution> {
+  if (answers.dateOfBirth && (phraseMatches('age', q.text) || /how old/i.test(q.text))) {
+    const fitted = fitAnswer(q, String(ageOn(answers.dateOfBirth, now)));
+    if (fitted !== null) return { ok: true, answer: fitted, source: 'rule' };
   }
+  // Per-skill years first: "How many years of experience do you have in C#?" must not get the
+  // total-experience rule.
   const years = skillYears(q, answers);
   if (years !== null) {
     const fitted = fitAnswer(q, years);
     if (fitted !== null) return { ok: true, answer: fitted, source: 'skill' };
+  }
+  // "Years of experience in Docker?" with no "Docker" in skills must not get your total
+  // experience from an "experience" rule; it goes to the model (or is skipped) instead.
+  const specificYears =
+    years === null &&
+    YEARS_Q.test(q.text) &&
+    /\b(experience|exp|worked|working)\b.*\b(in|with|on|using)\s+[a-z0-9.#+]/i.test(q.text) &&
+    !/\b(total|overall|industry|it experience|professional experience|relevant experience)\b/i.test(q.text);
+  for (const rule of answers.rules) {
+    if (specificYears && rule.match.some((m) => /\bexp(erience)?\b/i.test(m))) continue;
+    if (rule.match.some((m) => phraseMatches(m, q.text))) {
+      const fitted = fitAnswer(q, rule.answer);
+      if (fitted !== null) return { ok: true, answer: fitted, source: 'rule' };
+      return { ok: false, reason: `saved answer "${rule.answer}" fits none of the options` };
+    }
   }
   if (SENSITIVE.test(q.text)) return { ok: false, reason: 'personal question without a saved answer' };
   if (!ask) return { ok: false, reason: 'no saved answer (local model disabled)' };

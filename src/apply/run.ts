@@ -91,11 +91,19 @@ export async function runApply(cfg: Config, opts: RunOptions, now = new Date()):
     let failures = 0;
     let stopReason = '';
     const limit = dry ? a.maxPerDay : budget;
+    // The same role is often posted several times (different job ids): apply once per
+    // title + company, counting earlier runs' applications too.
+    const roleKey = (t: string, co: string): string => `${t}|${co}`.toLowerCase().replace(/s+/g, ' ').trim();
+    const roles = new Set(
+      Object.values(history.jobs)
+        .filter((j) => j.status === 'applied')
+        .map((j) => roleKey(j.title, j.company)),
+    );
 
     for (const c of cards) {
       if (lines.applied.length + lines.would.length >= limit) break;
       if (!isEligible(history, c.id, hash)) continue;
-      const why = filterReason(c, a);
+      const why = filterReason(c, a) ?? (roles.has(roleKey(c.title, c.company)) ? 'same role already applied to (repost)' : null);
       if (why) {
         lines.filtered++;
         record(c, { status: 'filtered', reason: why });
@@ -105,6 +113,7 @@ export async function runApply(cfg: Config, opts: RunOptions, now = new Date()):
       try {
         const out = await applyToJob(page, c.url, { answers, ask, log, timeoutMs: cfg.timeouts.actionMs, dryRun: dry });
         failures = 0;
+        if (out.status === 'applied' || out.status === 'would-apply') roles.add(roleKey(c.title, c.company));
         switch (out.status) {
           case 'applied':
             history.daily.applied++;

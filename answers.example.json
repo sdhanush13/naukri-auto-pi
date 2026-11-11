@@ -1,12 +1,52 @@
 {
   "profile": "Plain-text facts about you, copied from your resume: current role and employer, total years of experience, location, education, key projects and skills. List things you have NOT done too (e.g. 'Not in profile: Java, Kubernetes'), so the local model answers those as unknown instead of guessing. This is the only context the model sees.",
   "rules": [
-    { "match": ["total experience", "how many years of experience"], "answer": "5" },
-    { "match": ["notice period", "how soon can you join"], "answer": "60 days" },
-    { "match": ["current location", "current city"], "answer": "Bengaluru" },
-    { "match": ["current ctc", "current salary"], "answer": "REPLACE ME, e.g. 18 LPA" },
-    { "match": ["expected ctc", "expected salary"], "answer": "REPLACE ME, e.g. 25 LPA" },
-    { "match": ["relocate"], "answer": "Yes" }
+    {
+      "match": [
+        "total experience",
+        "how many years of experience"
+      ],
+      "answer": "5"
+    },
+    {
+      "match": [
+        "notice period",
+        "how soon can you join"
+      ],
+      "answer": "60 days"
+    },
+    {
+      "match": [
+        "current location",
+        "current city"
+      ],
+      "answer": "Bengaluru"
+    },
+    {
+      "match": [
+        "current ctc",
+        "current salary"
+      ],
+      "answer": "REPLACE ME, e.g. 18 LPA"
+    },
+    {
+      "match": [
+        "expected ctc",
+        "expected salary"
+      ],
+      "answer": "REPLACE ME, e.g. 25 LPA"
+    },
+    {
+      "match": [
+        "relocate"
+      ],
+      "answer": "Yes"
+    }
   ],
-  "skills": { "C#": 5, ".NET": 5, "Azure": 5, "SQL Server": 5 }
+  "skills": {
+    "C#": 5,
+    ".NET": 5,
+    "Azure": 5,
+    "SQL Server": 5
+  }
 }

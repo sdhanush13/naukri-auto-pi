@@ -60,7 +60,7 @@ export const applySchema = z.strictObject({
     .strictObject({
       url: z.url().default('http://naukri-ollama:11434'),
       model: z.string().min(1).default('qwen2.5:3b'),
-      timeoutSeconds: z.number().int().min(10).max(900).default(300),
+      timeoutSeconds: z.number().int().min(10).max(1800).default(600),
     })
     .optional(),
   /** Fixed pause between job pages, to keep the pace human-like and gentle on the site. */

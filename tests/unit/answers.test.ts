@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { type Answers, answersSchema, pickOption, resolveAnswer } from '../../src/apply/answers.js';
+import { type Answers, answersSchema, phraseMatches, pickOption, resolveAnswer } from '../../src/apply/answers.js';
 import { buildPrompt, ollamaAsker } from '../../src/apply/llm.js';
 
 const answers: Answers = answersSchema.parse({
@@ -22,6 +22,16 @@ describe('pickOption', () => {
   });
 });
 
+describe('phraseMatches', () => {
+  it('needs every word, as whole words, in any order', () => {
+    expect(phraseMatches('current ctc', 'What is your current annual CTC?')).toBe(true);
+    expect(phraseMatches('current ctc lakhs', 'Current CTC (in Lakhs)')).toBe(true);
+    expect(phraseMatches('current ctc lakhs', 'What is your current CTC?')).toBe(false);
+    expect(phraseMatches('age', 'Can you manage a team?')).toBe(false);
+    expect(phraseMatches('c#', 'Rate your C# skills')).toBe(true);
+  });
+});
+
 describe('resolveAnswer', () => {
   it('uses saved rules first, fitted to the question type', async () => {
     expect(await resolveAnswer({ text: 'What is your notice period?', kind: 'text' }, answers)).toEqual({
@@ -33,16 +43,37 @@ describe('resolveAnswer', () => {
     ).toMatchObject({ answer: 'Yes' });
   });
 
-  it('answers per-skill years, preferring the longest skill name', async () => {
-    const r = await resolveAnswer({ text: 'How many years of experience do you have in Azure Functions?', kind: 'number' }, answers);
-    // "years of experience do you have" is a total-experience rule, so rules win; use a skill phrasing instead:
-    expect(r.ok).toBe(true);
+  it('answers per-skill years before the total-experience rule, longest skill name first', async () => {
+    expect(
+      await resolveAnswer({ text: 'How many years of experience do you have in Azure Functions?', kind: 'number' }, answers),
+    ).toEqual({ ok: true, answer: '4', source: 'skill' });
+    expect(
+      await resolveAnswer({ text: 'How many years of experience do you have?', kind: 'number' }, answers),
+    ).toEqual({ ok: true, answer: '5', source: 'rule' });
     expect(
       await resolveAnswer({ text: 'Years of experience in Azure Functions', kind: 'number' }, answers),
     ).toEqual({ ok: true, answer: '4', source: 'skill' });
     expect(await resolveAnswer({ text: 'Experience in C# (years)', kind: 'number' }, answers)).toMatchObject({
       answer: '5', source: 'skill',
     });
+  });
+
+  it('does not answer "years in <unknown skill>" with the total experience', async () => {
+    const q = { text: 'How many years of experience in Docker?', kind: 'number' as const };
+    expect(await resolveAnswer(q, answers)).toMatchObject({ ok: false });
+    expect(await resolveAnswer(q, answers, async () => '2')).toEqual({ ok: true, answer: '2', source: 'llm' });
+    expect(
+      await resolveAnswer({ text: 'Total years of experience in the IT industry', kind: 'number' }, answers),
+    ).toMatchObject({ ok: true, answer: '5', source: 'rule' });
+  });
+
+  it('computes age from dateOfBirth on the day asked', async () => {
+    const a = { ...answers, dateOfBirth: '1996-02-22' };
+    const q = { text: 'What is your age?', kind: 'number' as const };
+    expect(await resolveAnswer(q, a, undefined, new Date(2027, 1, 21))).toMatchObject({ answer: '30' });
+    expect(await resolveAnswer(q, a, undefined, new Date(2027, 1, 22))).toMatchObject({ answer: '31' });
+    expect(await resolveAnswer(q, answers)).toMatchObject({ ok: false }); // no DOB saved: skipped
+    expect(phraseMatches('age', 'Can you manage a team?')).toBe(false);
   });
 
   it('never sends personal questions to the model', async () => {

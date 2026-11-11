@@ -92,6 +92,7 @@ describe('apply flow against mock Naukri', () => {
     expect(h.jobs['104'].status).toBe('already-applied');
     expect(h.jobs['105']).toMatchObject({ status: 'skipped-question' });
     expect(h.jobs['106'].status).toBe('filtered'); // 10-15 yrs
+    expect(h.jobs['107']).toMatchObject({ status: 'filtered', reason: 'same role already applied to (repost)' });
     expect(h.daily.applied).toBe(2);
     expect(r.message).toMatch(/Applied to 2/);
     expect(r.message).toMatch(/What is your current CTC\?/);

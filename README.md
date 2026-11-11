@@ -349,17 +349,21 @@ challenging or restricting the account, turn it off (`"mode": "off"`, then `inst
    Leave out `llm` to skip every job that asks something without a saved answer.
 2. Create `/etc/naukri-refresher/answers.json` from [`answers.example.json`](answers.example.json)
    (`profile`, `rules`, `skills`). Fill in CTC and anything else only you can answer.
+   Optional `"dateOfBirth": "YYYY-MM-DD"` answers age questions with your age on the day.
+   Rules match when all their words appear in the question; the first match wins, so put
+   specific rules (`current ctc lakhs`) before general ones (`current ctc`).
 3. `sudo bash /opt/naukri-refresher/scripts/install.sh`. It installs the apply units, starts
    Ollama and downloads the model (about 2 GB), and enables the apply timer.
 4. Check what it would answer, without a browser:
    ```bash
-   sudo docker run --rm --network naukri-net -v /etc/naukri-refresher:/etc/naukri-refresher:ro \
-     naukri-refresher:latest --task rehearse
+   sudo docker run --rm --init --user "$(id -u naukri):$(id -g naukri)" --network naukri-net \
+     -v /etc/naukri-refresher:/etc/naukri-refresher:ro --entrypoint node \
+     naukri-refresher:latest /app/dist/index.js --task rehearse
    ```
 5. Try it: `bash /opt/naukri-refresher/scripts/run-now.sh --apply --dry-run`.
 
-On a Pi 4 the first model answer of a run takes a minute or two (the model loads and reads
-your profile); later answers take a few seconds.
+On a Pi 4 the first model answer of a run takes about 3-4 minutes (the model loads and reads
+your profile); later answers take 10-30 seconds. Saved answers are instant.
 
 ---
 

@@ -50,6 +50,7 @@ export const MOCK_JOBS: MockJob[] = [
     id: '105', title: '.NET Azure Developer', company: 'Zeta', exp: '4-7 Yrs', loc: 'Bengaluru', kind: 'apply',
     questions: [{ text: 'What is your current CTC?', kind: 'text' }],
   },
+  { id: '107', title: 'Senior .NET Developer', company: 'Acme', exp: '4-8 Yrs', loc: 'Bengaluru', kind: 'apply' }, // repost of 100
   { id: '106', title: 'Principal .NET Architect', company: 'Eta', exp: '10-15 Yrs', loc: 'Bengaluru', kind: 'apply' },
 ];
 
