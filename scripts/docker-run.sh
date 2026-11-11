@@ -10,6 +10,11 @@ set -euo pipefail
 : "${CREDENTIALS_DIRECTORY:?no credentials loaded; run scripts/set-credentials.sh}"
 : "${RUNTIME_DIRECTORY:?must run under systemd (RuntimeDirectory=)}"
 IMAGE="${NAUKRI_IMAGE:-naukri-refresher:latest}"
+# Set by the unit: naukri-refresher.service runs the refresh, naukri-apply.service the auto-apply
+# (on the naukri-net network, where the local model container naukri-ollama lives).
+TASK="${NAUKRI_TASK:-refresh}"
+NETWORK="${NAUKRI_NETWORK:-bridge}"
+NAME="naukri-refresher"; [ "$TASK" = refresh ] || NAME="naukri-$TASK"
 
 uid="$(id -u naukri)"
 gid="$(id -g naukri)"
@@ -30,8 +35,8 @@ mkdir -p "${DOCKER_CONFIG:-$RUNTIME_DIRECTORY/docker}"
 tz="$(timedatectl show -p Timezone --value 2>/dev/null || true)"
 
 # Exit status of `docker run` is the container's exit code (0/1/2), which systemd records.
-exec docker run --rm --name naukri-refresher \
-  --hostname naukri-refresher \
+exec docker run --rm --name "$NAME" \
+  --hostname "$NAME" \
   --init \
   --user "${uid}:${gid}" \
   --read-only \
@@ -41,7 +46,7 @@ exec docker run --rm --name naukri-refresher \
   --shm-size=512m \
   --memory=1536m \
   --pids-limit=512 \
-  --network bridge \
+  --network "$NETWORK" \
   -e "TZ=${tz:-Asia/Kolkata}" \
   -e "CREDENTIALS_DIRECTORY=/run/creds" \
   -e "NAUKRI_DRY_RUN=${NAUKRI_DRY_RUN:-0}" \
@@ -50,4 +55,4 @@ exec docker run --rm --name naukri-refresher \
   -v /etc/naukri-refresher:/etc/naukri-refresher:ro \
   -v /var/lib/naukri-refresher:/var/lib/naukri-refresher:rw \
   -v "${creds}:/run/creds:ro" \
-  "$IMAGE"
+  "$IMAGE" --task "$TASK"

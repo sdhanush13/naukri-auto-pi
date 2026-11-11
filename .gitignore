@@ -23,3 +23,6 @@ coverage/
 
 # Output of scripts/read-profile-text.ts
 profile-text.json
+
+# Auto-apply answers (personal)
+answers.json

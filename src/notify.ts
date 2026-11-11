@@ -7,6 +7,8 @@ export type NotifyStatus = 'success' | 'failure' | 'manual' | 'dry-run';
 export interface Notification {
   status: NotifyStatus;
   message: string;
+  /** Overrides the default title (used by the apply task). */
+  title?: string;
 }
 
 const ICON: Record<NotifyStatus, string> = { success: '✅', failure: '❌', manual: '⚠️', 'dry-run': '🧪' };
@@ -26,7 +28,7 @@ const TITLE: Record<NotifyStatus, string> = {
 const TIMEOUT_MS = 10_000;
 
 export function formatNotification(n: Notification): { title: string; text: string } {
-  return { title: TITLE[n.status], text: `${ICON[n.status]} ${n.message}` };
+  return { title: n.title ?? TITLE[n.status], text: `${ICON[n.status]} ${n.message}` };
 }
 
 /** Sends the result. A notification failure is logged and never changes the exit code. */

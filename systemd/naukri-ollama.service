@@ -1,0 +1,33 @@
+# Local language model (Ollama) for the auto-apply screening questions. Docker mode only.
+# Installed as /etc/systemd/system/naukri-ollama.service by scripts/install.sh when config.json
+# has an "apply.llm" section. Nothing leaves the Pi: no port is published; only containers on
+# the private naukri-net network (the apply container) can reach it at http://naukri-ollama:11434.
+# Models live in the Docker volume naukri-ollama (qwen2.5:3b is about 2 GB).
+
+[Unit]
+Description=Local LLM for Naukri auto-apply (Ollama, Docker)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Environment=OLLAMA_IMAGE=ollama/ollama:0.40.11
+ExecStartPre=-/usr/bin/docker network create naukri-net
+ExecStartPre=-/usr/bin/docker rm -f naukri-ollama
+# --cap-drop=ALL / no-new-privileges: it only needs to read and write its model volume.
+# Memory: a 3B model needs ~2.5 GB; the Pi 4 (8 GB) also runs Chromium (1.5 GB cap).
+# OLLAMA_KEEP_ALIVE: unload the model 10 minutes after the last question, freeing the RAM.
+ExecStart=/usr/bin/docker run --rm --name naukri-ollama \
+  --network naukri-net \
+  --cap-drop=ALL --security-opt no-new-privileges \
+  --memory=4g --pids-limit=256 \
+  -e OLLAMA_KEEP_ALIVE=10m -e OLLAMA_NUM_PARALLEL=1 -e OLLAMA_MAX_LOADED_MODELS=1 \
+  -v naukri-ollama:/root/.ollama \
+  ${OLLAMA_IMAGE}
+ExecStop=/usr/bin/docker stop -t 20 naukri-ollama
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

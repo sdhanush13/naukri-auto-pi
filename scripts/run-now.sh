@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
-# Start the service now and follow its log. Run on the Pi.
+# Start a service now and follow its log. Run on the Pi.
 #
-#   bash scripts/run-now.sh             # real run (counts toward the 2-attempts-per-day cap)
-#   bash scripts/run-now.sh --dry-run   # restore session / log in, screenshot, change nothing
+#   bash scripts/run-now.sh                    # profile refresh (counts toward maxAttemptsPerDay)
+#   bash scripts/run-now.sh --dry-run          # restore session / log in, screenshot, change nothing
+#   bash scripts/run-now.sh --apply            # auto-apply (dry run until apply.autoFrom)
+#   bash scripts/run-now.sh --apply --dry-run  # auto-apply, forced dry run: report only
 set -euo pipefail
 UNIT=naukri-refresher.service
+ENVFILE=/run/naukri-refresher.oneshot.env
+DRY=0
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY=1 ;;
+    --apply) UNIT=naukri-apply.service; ENVFILE=/run/naukri-apply.oneshot.env ;;
+    *) echo "unknown option $arg" >&2; exit 64 ;;
+  esac
+done
 SUDO=""; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 
-if [ "${1:-}" = "--dry-run" ]; then
-  echo "NAUKRI_DRY_RUN=1" | $SUDO tee /run/naukri-refresher.oneshot.env >/dev/null
+if [ "$DRY" = 1 ]; then
+  echo "NAUKRI_DRY_RUN=1" | $SUDO tee "$ENVFILE" >/dev/null
   echo "==> dry run"
 fi
 

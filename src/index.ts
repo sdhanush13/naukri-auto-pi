@@ -9,11 +9,17 @@ import { claimDailyAttempt } from './dailyCap.js';
 import { describeExitCode, ExitCode, type ExitCodeValue } from './exitCodes.js';
 import { acquireLock } from './lock.js';
 import { type Logger, logger } from './logger.js';
+import { runApply } from './apply/run.js';
+import { rehearse } from './apply/rehearse.js';
 import { cleanMessage, runRefresh } from './naukri.js';
 import { healthcheck, notify, type NotifyStatus } from './notify.js';
 import { type AttemptResult, runWithRetry } from './retry.js';
 
-const HELP = `Usage: naukri-refresher [--dry-run] [--config <path>]
+const HELP = `Usage: naukri-refresher [--task refresh|apply|rehearse] [--dry-run] [--config <path>]
+
+  --task refresh   (default) re-upload the resume, update headline/summary.
+  --task apply     search jobs and apply (config "apply"; dry-run until apply.autoFrom).
+  --task rehearse  print the answers the apply task would give to sample questions; no browser.
 
   --dry-run        Restore the session (or log in), screenshot the profile page, change nothing.
                    Also enabled by NAUKRI_DRY_RUN=1 (used by scripts/run-now.sh --dry-run).
@@ -50,6 +56,7 @@ export async function main(argv: string[], log: Logger = logger): Promise<ExitCo
       args: argv,
       options: {
         'dry-run': { type: 'boolean', default: false },
+        task: { type: 'string', default: 'refresh' },
         config: { type: 'string' },
         help: { type: 'boolean', short: 'h', default: false },
       },
@@ -75,8 +82,17 @@ export async function main(argv: string[], log: Logger = logger): Promise<ExitCo
     return ExitCode.Failure;
   }
 
-  log.info({ dryRun, configPath }, 'naukri-refresher starting');
-  if (!dryRun) await healthcheck(cfg, 'start', log);
+  const task = args.task;
+  if (task !== 'refresh' && task !== 'apply' && task !== 'rehearse') {
+    log.error({ task }, '--task must be refresh, apply or rehearse');
+    return ExitCode.Failure;
+  }
+  if (task === 'rehearse') return rehearse(cfg, log);
+  const isApply = task === 'apply';
+
+  log.info({ dryRun, configPath, task }, 'naukri-refresher starting');
+  // healthchecks.io tracks the refresher's schedule; the apply task doesn't ping it.
+  if (!dryRun && !isApply) await healthcheck(cfg, 'start', log);
 
   const finish = async (result: AttemptResult & { attempts: number }): Promise<ExitCodeValue> => {
     const message = messageFor(result);
@@ -84,14 +100,21 @@ export async function main(argv: string[], log: Logger = logger): Promise<ExitCo
       { code: result.code, outcome: describeExitCode(result.code), step: result.step, attempts: result.attempts },
       message,
     );
-    await writeLastRun(cfg, result, dryRun);
-    await notify(cfg, { status: statusFor(result.code, dryRun), message }, log);
-    if (!dryRun) await healthcheck(cfg, result.code === ExitCode.Success ? 'success' : 'fail', log, message);
+    if (!isApply) await writeLastRun(cfg, result, dryRun);
+    const title = isApply
+      ? result.code === ExitCode.Success
+        ? 'Naukri auto-apply'
+        : result.code === ExitCode.ManualLogin
+          ? 'Naukri: manual login needed'
+          : 'Naukri auto-apply failed'
+      : undefined;
+    await notify(cfg, { status: statusFor(result.code, dryRun), message, title }, log);
+    if (!dryRun && !isApply) await healthcheck(cfg, result.code === ExitCode.Success ? 'success' : 'fail', log, message);
     return result.code;
   };
 
   try {
-    await checkResumeFile(cfg.resumePath);
+    if (!isApply) await checkResumeFile(cfg.resumePath);
   } catch (err) {
     return finish({ code: ExitCode.Failure, step: 'resume-check', message: cleanMessage(err), attempts: 0 });
   }
@@ -112,6 +135,10 @@ export async function main(argv: string[], log: Logger = logger): Promise<ExitCo
 
   try {
     const chromiumSandbox = process.env.NAUKRI_IN_DOCKER !== '1' && process.env.NAUKRI_CHROMIUM_SANDBOX !== '0';
+    if (isApply) {
+      const r = await runApply(cfg, { dryRun, log, chromiumSandbox });
+      return await finish({ ...r, attempts: 1 });
+    }
     const result = await runWithRetry(
       {
         runOnce: (attempt) => {

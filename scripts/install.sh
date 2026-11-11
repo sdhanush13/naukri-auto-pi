@@ -111,6 +111,51 @@ install -d -m 0755 "$UNIT_DIR/$TIMER.d"
 printf '[Timer]\nOnCalendar=\nOnCalendar=%s\n' "$schedule" >"$UNIT_DIR/$TIMER.d/schedule.conf"
 info "schedule: $schedule"
 
+# --- auto-apply (optional; Docker mode only) -------------------------------------------------
+# Switched on by an "apply" section in config.json (mode "dry-run" or "auto"), off otherwise.
+mapfile -t apply_cfg < <(python3 - "$ETC_DIR/config.json" <<'PY'
+import json, sys
+try:
+    a = json.load(open(sys.argv[1])).get("apply")
+except Exception:
+    a = None
+if not a or a.get("mode", "dry-run") == "off":
+    print("off")
+else:
+    print(a.get("schedule", "Mon..Fri 11:00"))
+    llm = a.get("llm")
+    print((llm or {}).get("model", "qwen2.5:3b") if llm is not None else "")
+PY
+)
+APPLY_TIMER=naukri-apply.timer
+if [ "${apply_cfg[0]}" != off ]; then
+  [ "$MODE" = docker ] || die "auto-apply (config \"apply\") is supported in Docker mode only"
+  install -m 0644 "$APP_DIR/systemd/naukri-apply.service" "$UNIT_DIR/naukri-apply.service"
+  install -m 0644 "$APP_DIR/systemd/naukri-apply.timer" "$UNIT_DIR/$APPLY_TIMER"
+  systemd-analyze calendar "${apply_cfg[0]}" >/dev/null || die "invalid apply.schedule '${apply_cfg[0]}'"
+  install -d -m 0755 "$UNIT_DIR/$APPLY_TIMER.d"
+  printf '[Timer]\nOnCalendar=\nOnCalendar=%s\n' "${apply_cfg[0]}" >"$UNIT_DIR/$APPLY_TIMER.d/schedule.conf"
+  info "auto-apply schedule: ${apply_cfg[0]}"
+  [ -f "$ETC_DIR/answers.json" ] && { chown root:naukri "$ETC_DIR/answers.json"; chmod 0640 "$ETC_DIR/answers.json"; }
+  if [ -n "${apply_cfg[1]:-}" ]; then
+    install -m 0644 "$APP_DIR/systemd/naukri-ollama.service" "$UNIT_DIR/naukri-ollama.service"
+    ollama_image="$(sed -n 's/^Environment=OLLAMA_IMAGE=//p' "$UNIT_DIR/naukri-ollama.service")"
+    info "pulling $ollama_image"
+    docker pull -q "$ollama_image" >/dev/null || die "could not pull $ollama_image"
+    systemctl daemon-reload
+    systemctl enable naukri-ollama.service >/dev/null 2>&1
+    systemctl restart naukri-ollama.service
+    info "waiting for the local model server"
+    for _ in $(seq 1 60); do docker exec naukri-ollama ollama list >/dev/null 2>&1 && break; sleep 2; done
+    info "downloading model ${apply_cfg[1]} (first time: ~2 GB)"
+    docker exec naukri-ollama ollama pull "${apply_cfg[1]}" >/dev/null || die "could not pull model ${apply_cfg[1]}"
+  fi
+else
+  for u in "$APPLY_TIMER" naukri-ollama.service; do
+    systemctl disable --now "$u" >/dev/null 2>&1 || true
+  done
+fi
+
 # Regenerate the credentials drop-in from whatever *.cred files exist.
 bash "$APP_DIR/scripts/set-credentials.sh" sync >/dev/null
 
@@ -129,11 +174,20 @@ elif systemctl is-enabled --quiet "$TIMER" 2>/dev/null; then
 else
   info "timer NOT enabled yet. After a successful dry run: sudo systemctl enable --now $TIMER"
 fi
+if [ "${apply_cfg[0]}" != off ]; then
+  # The config's "apply" section is the on-switch (mode "dry-run" applies to nothing).
+  systemctl enable "$APPLY_TIMER" >/dev/null 2>&1
+  systemctl restart "$APPLY_TIMER"
+  info "auto-apply timer enabled"
+fi
 
 missing=()
 [ -f "$ETC_DIR/creds/naukri-password.cred" ] || missing+=("credentials: sudo bash $APP_DIR/scripts/set-credentials.sh")
 [ -f "$STATE_DIR/state.json" ] || missing+=("session: npm run manual-login on your laptop, then copy state.json (README)")
 ls "$ETC_DIR/resume/"* >/dev/null 2>&1 || missing+=("resume: copy it into $ETC_DIR/resume/ and set resumePath")
+if [ "${apply_cfg[0]}" != off ] && [ ! -f "$ETC_DIR/answers.json" ]; then
+  missing+=("auto-apply answers: create $ETC_DIR/answers.json (see answers.example.json)")
+fi
 if [ ${#missing[@]} -gt 0 ]; then
   echo; echo "Still to do:"; printf '  - %s\n' "${missing[@]}"
 fi

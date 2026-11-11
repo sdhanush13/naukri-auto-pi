@@ -1,0 +1,65 @@
+# Auto-apply (Docker mode only). Installed as /etc/systemd/system/naukri-apply.service.
+# Same wrapper, image and hardening as naukri-refresher.service; see the notes there.
+#
+# Why this unit runs as root: talking to the Docker socket is root-equivalent, so giving the
+# `naukri` user the docker group would make it root anyway. Instead this unit (root) only runs
+# scripts/docker-run.sh, and Chromium runs inside a hardened container as the unprivileged
+# `naukri` UID (--read-only, --cap-drop=ALL, no-new-privileges, memory/pids limits).
+# The systemd sandboxing below confines the wrapper script, not the container: dockerd
+# starts the container, outside this unit's cgroup and namespaces.
+#
+# Credentials: the drop-in naukri-refresher.service.d/credentials.conf (written by
+# scripts/set-credentials.sh) adds one LoadCredentialEncrypted= line per stored secret.
+
+[Unit]
+Description=Naukri job auto-apply (Docker)
+Documentation=file:///opt/naukri-refresher/README.md
+Wants=network-online.target
+After=network-online.target docker.service naukri-ollama.service
+Requires=docker.service
+# The local model for screening questions; the run still works (skipping those jobs) without it.
+Wants=naukri-ollama.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /opt/naukri-refresher/scripts/docker-run.sh
+# "+" = run outside the sandbox: /run is read-only under ProtectSystem=strict.
+ExecStopPost=+/bin/sh -c 'docker rm -f naukri-apply >/dev/null 2>&1 || true; rm -f /run/naukri-apply.oneshot.env'
+# One-shot flags (NAUKRI_DRY_RUN=1) written by scripts/run-now.sh --dry-run; removed after the run.
+EnvironmentFile=-/run/naukri-apply.oneshot.env
+# ProtectHome hides /root; keep the docker CLI's config in the runtime dir instead.
+Environment=DOCKER_CONFIG=/run/naukri-apply/docker
+Environment=NAUKRI_IMAGE=naukri-refresher:latest
+Environment=NAUKRI_TASK=apply
+Environment=NAUKRI_NETWORK=naukri-net
+# Searches + up to 25 applications with pauses and local-model answers; a hung run is killed.
+TimeoutStartSec=90min
+# The app's own retry handles failures. No systemd restarts.
+Restart=no
+RuntimeDirectory=naukri-apply
+RuntimeDirectoryMode=0700
+
+# Hardening for the wrapper (see note above about what it does and does not cover).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/naukri-refresher
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# The docker CLI only needs the Unix socket.
+RestrictAddressFamilies=AF_UNIX
+# Relaxation: the wrapper chowns the decrypted credential copy to the naukri UID so the
+# container user can read it. CAP_CHOWN + CAP_FOWNER are the only capabilities kept.
+CapabilityBoundingSet=CAP_CHOWN CAP_FOWNER
+UMask=0077
+
+[Install]
+# Started by naukri-apply.timer; not enabled on its own.

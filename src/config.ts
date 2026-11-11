@@ -23,6 +23,52 @@ const notifySchema = z.discriminatedUnion('provider', [
   z.strictObject({ provider: z.literal('none') }),
 ]);
 
+const applySearchSchema = z.strictObject({
+  /** Naukri search keywords, e.g. "senior .net developer". */
+  keywords: z.string().trim().min(2).max(100),
+  /** City as Naukri spells it in URLs, e.g. "bangalore". Omit with remote: true for all-India remote. */
+  location: z.string().trim().min(2).max(50).optional(),
+  /** Only work-from-home / remote jobs. */
+  remote: z.boolean().default(false),
+});
+
+export const applySchema = z.strictObject({
+  /**
+   * "off": never runs. "dry-run": search and report what it would apply to, apply to nothing.
+   * "auto": apply (within maxPerDay). With autoFrom set, "auto" behaves as "dry-run" until that date.
+   */
+  mode: z.enum(['off', 'dry-run', 'auto']).default('dry-run'),
+  autoFrom: z.iso.date().optional(),
+  /** systemd OnCalendar for the apply timer (separate from the refresher's "schedule"). */
+  schedule: z.string().trim().min(1).default('Mon..Fri 11:00'),
+  searches: z.array(applySearchSchema).min(1).max(10),
+  /** Your total experience in years; passed to Naukri's search and used to filter job ranges. */
+  experienceYears: z.number().int().min(0).max(40),
+  /** Only jobs posted within this many days (Naukri freshness filter). */
+  jobAgeDays: z.union([z.literal(1), z.literal(3), z.literal(7), z.literal(15), z.literal(30)]).default(3),
+  /** Hard cap on applications per calendar day. */
+  maxPerDay: z.number().int().min(1).max(25).default(10),
+  /** Skip jobs whose title contains any of these (case-insensitive), e.g. "intern", "java". */
+  excludeTitleWords: z.array(z.string().trim().min(1)).default([]),
+  /** If set, the title must contain at least one of these, e.g. ".net", "dotnet", "c#". */
+  requireTitleWords: z.array(z.string().trim().min(1)).default([]),
+  excludeCompanies: z.array(z.string().trim().min(1)).default([]),
+  /** Your saved answers and profile facts (personal; lives next to config.json, not in git). */
+  answersPath: z.string().min(1).default('/etc/naukri-refresher/answers.json'),
+  /** Local model (Ollama on the Pi) for questions without a saved answer. Omit to skip those jobs. */
+  llm: z
+    .strictObject({
+      url: z.url().default('http://naukri-ollama:11434'),
+      model: z.string().min(1).default('qwen2.5:3b'),
+      timeoutSeconds: z.number().int().min(10).max(900).default(300),
+    })
+    .optional(),
+  /** Fixed pause between job pages, to keep the pace human-like and gentle on the site. */
+  pauseSeconds: z.number().int().min(2).max(120).default(8),
+});
+
+export type ApplyConfig = z.output<typeof applySchema>;
+
 export const configSchema = z.strictObject({
   resumePath: z
     .string()
@@ -62,6 +108,8 @@ export const configSchema = z.strictObject({
    * deliberate, accepted trade-off (see README, "Browser mode").
    */
   browserMode: z.enum(['headless', 'headed']).default('headless'),
+  /** Optional job auto-apply (run with --task apply). */
+  apply: applySchema.optional(),
   timeouts: z
     .strictObject({
       navigationMs: z.number().int().positive().default(45_000),

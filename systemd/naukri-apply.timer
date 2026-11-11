@@ -1,0 +1,14 @@
+[Unit]
+Description=Apply to matching Naukri jobs on weekdays
+
+[Timer]
+# Default schedule. scripts/install.sh overrides it from "apply.schedule" in
+# /etc/naukri-refresher/config.json via a drop-in (naukri-apply.timer.d/schedule.conf).
+OnCalendar=Mon..Fri 11:00
+Persistent=true
+RandomizedDelaySec=0
+AccuracySec=1min
+Unit=naukri-apply.service
+
+[Install]
+WantedBy=timers.target

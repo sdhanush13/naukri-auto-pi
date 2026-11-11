@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Mock Naukri - Job</title>
+  <style>
+    [hidden]{display:none!important}
+    .chatbot_DrawerContentWrapper{position:fixed;right:0;top:0;bottom:0;width:420px;background:#fff;border-left:1px solid #999;padding:1em}
+    .sendMsg{display:inline-block;border:1px solid #333;padding:4px 10px;cursor:pointer}
+    .textArea{border:1px solid #999;min-height:2em}
+  </style>
+</head>
+<body>
+  <!-- Mirrors the live job page + screening chatbot (selectors in src/apply/applyJob.ts). -->
+  <h1 class="jd-header-title">{{TITLE}}</h1>
+  <div class="jd-header-comp-name">{{COMPANY}}</div>
+  <div id="buttons">{{BUTTON}}</div>
+  <p id="quota" hidden>Your daily quota has been expired.</p>
+
+  <div class="chatbot_DrawerContentWrapper" hidden>
+    <span class="chatBot-ic-cross" role="button">×</span>
+    <ul id="chatList__x1"></ul>
+    <div id="singleselect_radiobutton__x1" class="ssrc__radio-group"></div>
+    <div class="multicheckboxes-container"></div>
+    <div class="textArea" contenteditable="true" id="userInput__x1InputBox" hidden></div>
+    <div id="sendMsgbtn_container__x1"><div class="sendMsg">Save</div></div>
+  </div>
+
+  <script>
+    const JOB_ID = {{JOB_ID}};
+    const QUESTIONS = {{QUESTIONS}};
+    const QUOTA = {{QUOTA}};
+    const drawer = document.querySelector('.chatbot_DrawerContentWrapper');
+    const list = drawer.querySelector('ul');
+    const radios = drawer.querySelector('.ssrc__radio-group');
+    const boxes = drawer.querySelector('.multicheckboxes-container');
+    const input = drawer.querySelector('.textArea');
+    const answers = [];
+    let i = -1;
+
+    const bot = (text) => {
+      const li = document.createElement('li'); li.className = 'botItem';
+      const div = document.createElement('div'); div.className = 'botMsg';
+      li.append(div); list.append(li);
+      setTimeout(() => { div.textContent = text; }, 150); // types out, like the real bot
+    };
+    const user = (text) => {
+      const li = document.createElement('li'); li.className = 'userItem';
+      li.innerHTML = '<div class="userMsg"></div>'; li.firstChild.textContent = text; list.append(li);
+    };
+    const finish = async () => {
+      bot('Thank you for your responses.');
+      const r = await fetch('/api/apply', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: JOB_ID, answers }) });
+      if ((await r.json()).quota) { drawer.hidden = true; document.getElementById('quota').hidden = false; return; }
+      setTimeout(() => { location.href = '/myapply/saveApply?strJobsarr=[' + JOB_ID + ']&applytype=single'; }, 300);
+    };
+    const next = () => {
+      i++;
+      radios.innerHTML = ''; boxes.innerHTML = ''; input.textContent = ''; input.hidden = true;
+      if (i >= QUESTIONS.length) return finish();
+      const q = QUESTIONS[i];
+      bot(q.text);
+      if (q.kind === 'radio') {
+        q.options.forEach((o, k) => {
+          radios.insertAdjacentHTML('beforeend', '<div class="ssrc__radio-btn-container"><input type="radio" class="ssrc__radio" name="r" id="r' + k + '" value="' + o + '"><label class="ssrc__label" for="r' + k + '">' + o + '</label></div>');
+        });
+      } else if (q.kind === 'checkbox') {
+        q.options.forEach((o, k) => {
+          boxes.insertAdjacentHTML('beforeend', '<div class="mcc__checkbox"><input type="checkbox" id="c' + k + '" value="' + o + '"><label class="mcc__label" for="c' + k + '">' + o + '</label></div>');
+        });
+      } else {
+        input.hidden = false;
+      }
+    };
+
+    drawer.querySelector('.sendMsg').addEventListener('click', () => {
+      const q = QUESTIONS[i];
+      let value;
+      if (q.kind === 'radio') value = drawer.querySelector('.ssrc__radio:checked')?.value;
+      else if (q.kind === 'checkbox') value = [...drawer.querySelectorAll('.mcc__checkbox input:checked')].map((c) => c.value).join(', ');
+      else value = input.textContent.trim();
+      if (!value) return; // Save does nothing without an answer
+      answers.push({ q: q.text, a: value }); user(value); next();
+    });
+    drawer.querySelector('.chatBot-ic-cross').addEventListener('click', () => { drawer.hidden = true; });
+
+    const apply = document.getElementById('apply-button');
+    if (apply) apply.addEventListener('click', () => {
+      if (QUESTIONS.length === 0) return finish();
+      drawer.hidden = false;
+      bot('Hi Tester, thank you for showing interest. Kindly answer all the recruiter questions to successfully apply for the job.');
+      setTimeout(next, 300);
+    });
+  </script>
+</body>
+</html>

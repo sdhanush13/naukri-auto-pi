@@ -21,6 +21,9 @@ A small Playwright (Chromium) job for a Raspberry Pi on your home network. On a 
 4. reloads the profile and checks that it shows today as the last update,
 5. sends you the result on ntfy or Telegram, and optionally pings healthchecks.io.
 
+Optionally, a second job [auto-applies](#auto-apply-optional) to matching jobs, answering screening
+questions from your saved answers and a small language model that runs on the Pi itself.
+
 ## Quick start
 
 ```bash
@@ -62,6 +65,7 @@ Naukri wants a human, the job stops and asks you (exit code 2).
 - [Pi prerequisites](#pi-prerequisites)
 - [Setup (in this order)](#setup-in-this-order)
 - [Configuration](#configuration)
+- [Auto-apply (optional)](#auto-apply-optional)
 - [Daily operation](#daily-operation)
 - [Updating the resume, headline or schedule](#updating-the-resume-headline-or-schedule)
 - [Recovering from exit code 2](#recovering-from-exit-code-2)
@@ -287,6 +291,78 @@ the manual-login one.
 
 ---
 
+## Auto-apply (optional)
+
+A second, separate job (`naukri-apply.service` + `naukri-apply.timer`, Docker mode only). It
+searches Naukri with your keywords, filters the results, and applies through Naukri's own
+Apply button, answering the recruiter's screening questions from **your** saved answers.
+
+```
+naukri-apply.timer (apply.schedule, e.g. Mon..Fri 11:00)
+  └─ naukri-apply.service ─ same image/hardening, --task apply, network naukri-net
+       ├─ each search: first results page only (/<keywords>-jobs-in-<city>?experience=&jobAge=[&wfhType=2])
+       ├─ filter: title words, companies, experience range, already seen (apply-history.json)
+       ├─ job page: "Apply on company site" / walk-in → never followed; "Applied" → skipped
+       ├─ Apply → screening chatbot: each question answered by
+       │     1. a saved rule (answers.json "rules"), 2. per-skill years ("skills"),
+       │     3. the local model (Ollama, on the Pi) using only your "profile" text
+       │   personal questions (CTC, notice, DOB, ID numbers…) never go to the model;
+       │   no answer → the job is skipped and the question is listed in the notification
+       └─ ntfy: what it applied to (or would, in a dry run) and which questions to add
+```
+
+**Safety rails**
+- `mode: "dry-run"` (default) applies to nothing. `mode: "auto"` with `autoFrom` stays a dry run
+  until that date, so you can watch a week of reports first.
+- `maxPerDay` (default 10, max 25) is a hard cap; it also stops on Naukri's "daily quota" message,
+  and after 3 jobs in a row fail (probably changed selectors).
+- A fixed pause (`pauseSeconds`, default 8) between pages; only the first results page per search.
+- Each job is applied to once. A job skipped for a missing answer is retried only after
+  `answers.json` changes.
+- The local model runs in the `naukri-ollama` container with no published port; nothing about
+  you or the jobs leaves the Pi except the application itself.
+
+**Risk:** auto-applying is more automation than refreshing a profile, and Naukri's bot
+protection already blocks headless browsers. Applications go out in your name; check the
+dry-run reports and the first real day closely. The same stop rule applies: if Naukri starts
+challenging or restricting the account, turn it off (`"mode": "off"`, then `install.sh`).
+
+**Setup**
+1. Add an `apply` section to `config.json`:
+   ```json
+   "apply": {
+     "mode": "auto",
+     "autoFrom": "2026-11-18",
+     "schedule": "Mon..Fri 11:00",
+     "searches": [
+       { "keywords": "senior .net developer", "location": "bangalore" },
+       { "keywords": "senior .net developer", "remote": true }
+     ],
+     "experienceYears": 5,
+     "jobAgeDays": 3,
+     "maxPerDay": 10,
+     "requireTitleWords": [".net", "dotnet", "c#"],
+     "excludeTitleWords": ["intern", "trainee"],
+     "llm": { "model": "qwen2.5:3b" }
+   }
+   ```
+   Leave out `llm` to skip every job that asks something without a saved answer.
+2. Create `/etc/naukri-refresher/answers.json` from [`answers.example.json`](answers.example.json)
+   (`profile`, `rules`, `skills`). Fill in CTC and anything else only you can answer.
+3. `sudo bash /opt/naukri-refresher/scripts/install.sh`. It installs the apply units, starts
+   Ollama and downloads the model (about 2 GB), and enables the apply timer.
+4. Check what it would answer, without a browser:
+   ```bash
+   sudo docker run --rm --network naukri-net -v /etc/naukri-refresher:/etc/naukri-refresher:ro \
+     naukri-refresher:latest --task rehearse
+   ```
+5. Try it: `bash /opt/naukri-refresher/scripts/run-now.sh --apply --dry-run`.
+
+On a Pi 4 the first model answer of a run takes a minute or two (the model loads and reads
+your profile); later answers take a few seconds.
+
+---
+
 ## Daily operation
 
 | Task | Command (on the Pi) |
@@ -294,6 +370,7 @@ the manual-login one.
 | Run now and follow the log | `bash /opt/naukri-refresher/scripts/run-now.sh` |
 | Dry run | `bash /opt/naukri-refresher/scripts/run-now.sh --dry-run` |
 | Last result, next run, newest artifacts | `bash /opt/naukri-refresher/scripts/status.sh` |
+| Auto-apply now (dry run / real) | `bash /opt/naukri-refresher/scripts/run-now.sh --apply --dry-run` / `--apply` |
 | Deploy a code change from the laptop | `PI=pi@raspberrypi.local bash scripts/deploy.sh` |
 
 A real `run-now.sh` counts toward the daily cap (`maxAttemptsPerDay`). If scheduled runs already used it up,
