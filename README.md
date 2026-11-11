@@ -336,16 +336,22 @@ challenging or restricting the account, turn it off (`"mode": "off"`, then `inst
      "schedule": "Mon..Fri 11:00",
      "searches": [
        { "keywords": "senior .net developer", "location": "bangalore" },
+       { "keywords": "dotnet developer", "location": "bangalore" },
+       { "keywords": "c# developer", "location": "bangalore" },
        { "keywords": "senior .net developer", "remote": true }
      ],
      "experienceYears": 5,
-     "jobAgeDays": 3,
+     "jobAgeDays": 7,
      "maxPerDay": 10,
-     "requireTitleWords": [".net", "dotnet", "c#"],
+     "requireTitleWords": [".net", "dotnet", "dot net", "c#"],
      "excludeTitleWords": ["intern", "trainee"],
      "llm": { "model": "qwen2.5:3b" }
    }
    ```
+   Up to 10 searches; results are merged and de-duplicated. Broad keywords (`c# developer`)
+   find more jobs, and `requireTitleWords` keeps the off-topic ones out. `jobAgeDays` is
+   1, 3, 7, 15 or 30; with 7, a job stays in reach for a week, and history stops it being
+   applied to twice.
    Leave out `llm` to skip every job that asks something without a saved answer.
 2. Create `/etc/naukri-refresher/answers.json` from [`answers.example.json`](answers.example.json)
    (`profile`, `rules`, `skills`). Fill in CTC and anything else only you can answer.
