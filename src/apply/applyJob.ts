@@ -135,18 +135,35 @@ export async function applyToJob(page: Page, url: string, deps: ApplyDeps): Prom
   if (state !== jobSel.apply) return { status: 'failed', reason: 'no Apply button found' };
   if (deps.dryRun) return { status: 'would-apply' };
 
-  // Apply may open the employer's site in a new tab; we never fill in third-party forms.
-  const popup = page.context().waitForEvent('page', { timeout: 5_000 }).catch(() => null);
-  await page.locator(jobSel.apply).first().click();
-  const opened = await popup;
-  if (opened) {
-    await opened.close().catch(() => undefined);
-    return { status: 'external', reason: 'Apply opened an external site' };
+  // A click before the page's scripts have loaded does nothing (seen live 2026-11-18..20: 16
+  // jobs "failed" this way), so wait for load, click the visible button, and retry if nothing
+  // happens. Each retry only happens when no chatbot, confirmation or new tab appeared.
+  await page.waitForLoadState('load', { timeout: timeoutMs }).catch(() => undefined);
+  await page.waitForTimeout(2_000);
+  const started = async (): Promise<boolean> =>
+    (await page.locator(jobSel.drawer).filter({ visible: true }).count()) > 0 || (await succeeded(page)) || (await quotaHit(page));
+  let clicked = false;
+  for (let attempt = 1; attempt <= 3 && !clicked; attempt++) {
+    // Apply may open the employer's site in a new tab; we never fill in third-party forms.
+    const popup = page.context().waitForEvent('page', { timeout: 5_000 }).catch(() => null);
+    await page.locator(jobSel.apply).filter({ visible: true }).first().click();
+    const opened = await popup;
+    if (opened) {
+      await opened.close().catch(() => undefined);
+      return { status: 'external', reason: 'Apply opened an external site' };
+    }
+    for (let i = 0; i < 20 && !clicked; i++) {
+      clicked = await started();
+      if (!clicked) await page.waitForTimeout(500);
+    }
+    if (!clicked) log.info({ attempt }, 'Apply click had no visible effect yet; retrying');
   }
+  if (!clicked) return { status: 'failed', reason: 'Apply button did nothing (3 clicks)' };
 
   const answered: string[] = [];
   let previous = '';
-  const deadline = Date.now() + timeoutMs * 6;
+  // Restarted after every answer: the local model can take minutes on its first question.
+  let deadline = Date.now() + timeoutMs * 6;
   while (Date.now() < deadline) {
     if (await quotaHit(page)) return { status: 'quota', reason: 'Naukri says the daily apply quota is used up' };
     if (await succeeded(page)) return { status: 'applied', questions: answered };
@@ -169,7 +186,7 @@ export async function applyToJob(page: Page, url: string, deps: ApplyDeps): Prom
     const q = await readQuestion(drawer, text);
     const res = await resolveAnswer(q, deps.answers, deps.ask);
     if (!res.ok) {
-      log.info({ question: q.text, kind: q.kind, reason: res.reason }, 'cannot answer; skipping job');
+      log.info({ question: q.text, kind: q.kind, options: q.options, reason: res.reason }, 'cannot answer; skipping job');
       await closeDrawer(page, drawer);
       return { status: 'skipped-question', reason: res.reason, question: q.text };
     }
@@ -177,6 +194,7 @@ export async function applyToJob(page: Page, url: string, deps: ApplyDeps): Prom
     await submitAnswer(drawer, q, res.answer);
     answered.push(`${q.text} → ${res.answer} (${res.source})`);
     previous = text;
+    deadline = Date.now() + timeoutMs * 6;
   }
   return { status: 'failed', reason: 'no confirmation that the application went through' };
 }

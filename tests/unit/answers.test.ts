@@ -20,6 +20,24 @@ describe('pickOption', () => {
     expect(pickOption('7', ['0-2 years', '3-5 years', '6+ years'])).toBe('6+ years');
     expect(pickOption('maybe', ['Yes', 'No'])).toBeNull();
   });
+
+  it('handles open-ended spans and shared edges (seen on Naukri)', () => {
+    expect(pickOption('5', ['<5', '5 to 7', '7+'])).toBe('5 to 7');
+    expect(pickOption('5.3', ['<5', '5 to 7', '7+'])).toBe('5 to 7');
+    expect(pickOption('4', ['<5', '5 to 7', '7+'])).toBe('<5');
+    expect(pickOption('5', ['Less than 1 year', '1-2 years', 'More than 2 years'])).toBe('More than 2 years');
+  });
+
+  it('maps notice-period durations onto day and month options', () => {
+    const opts = ['Immediate', '15 days or less', '1 month', '2 months', '3 months', 'More than 3 months'];
+    expect(pickOption('60 days', opts)).toBe('2 months');
+    expect(pickOption('60 days', ['0-15 days', '15-30 days', '30-60 days', '60-90 days'])).toBe('60-90 days');
+    expect(pickOption('60 days', ['Immediate', 'Less than 30 days', 'More than 30 days'])).toBe('More than 30 days');
+  });
+
+  it('treats Bangalore and Bengaluru as the same city', () => {
+    expect(pickOption('Bengaluru', ['Hyderabad', 'Bangalore', 'Pune'])).toBe('Bangalore');
+  });
 });
 
 describe('phraseMatches', () => {
@@ -91,9 +109,43 @@ describe('resolveAnswer', () => {
   });
 
   it('accepts a model answer only if it fits the options', async () => {
-    const q = { text: 'Have you worked on Azure?', kind: 'radio' as const, options: ['Yes', 'No'] };
+    const q = { text: 'Have you worked on Kafka?', kind: 'radio' as const, options: ['Yes', 'No'] };
     expect(await resolveAnswer(q, answers, async () => 'Yes')).toEqual({ ok: true, answer: 'Yes', source: 'llm' });
     expect(await resolveAnswer(q, answers, async () => 'Somewhat')).toMatchObject({ ok: false });
+  });
+
+  it('only uses skill years when the question names known skills and nothing else', async () => {
+    const ask = vi.fn(async () => null);
+    const r = (text: string) => resolveAnswer({ text, kind: 'number' }, answers, ask);
+    expect(await r('How many years of experience do you have in Azure Data Factory?')).toMatchObject({ ok: false });
+    expect(await r('How many years of experience do you have in Azure Functions?')).toMatchObject({ answer: '4', source: 'skill' });
+    expect(await r('How many years of experience do you have in .NET 8 / .NET 9?')).toMatchObject({ answer: '5' });
+    expect(await r('How many years of hands-on experience do you have in C# and .NET Core development?')).toMatchObject({ answer: '5' });
+    expect(await r('How many years of experience do you have in C# and Azure Functions?')).toMatchObject({ answer: '4' });
+    expect(await r('Total years of hands-on C#/.NET experience?')).toMatchObject({ answer: '5' });
+  });
+
+  it('answers "do you have experience in X" with Yes when X is a listed skill', async () => {
+    const ask = vi.fn(async () => null);
+    expect(await resolveAnswer({ text: 'Do you have experience in C#/Oracle', kind: 'text' }, answers, ask)).toMatchObject({ answer: 'Yes', source: 'skill' });
+    expect(await resolveAnswer({ text: 'Do you have experience in Azure Data Factory?', kind: 'text' }, answers, ask)).toMatchObject({ ok: false });
+  });
+
+  it('matches Lacs/Lakh spellings to "lakhs" rules', async () => {
+    const a = answersSchema.parse({ ...answers, rules: [{ match: ['current ctc lakhs'], answer: '28.08' }, { match: ['current ctc'], answer: '2808000' }] });
+    expect(await resolveAnswer({ text: 'What is your current CTC in Lacs per annum?', kind: 'number' }, a)).toMatchObject({ answer: '28.08' });
+  });
+
+  it('falls through to the next rule when a saved answer fits no option', async () => {
+    const a = answersSchema.parse({ ...answers, rules: [{ match: ['relocate'], answer: 'Yes' }, { match: ['city'], answer: 'Bengaluru' }] });
+    const q = { text: 'Please select the city you are currently residing or willing to relocate to', kind: 'checkbox' as const, options: ['Hyderabad', 'Bangalore'] };
+    expect(await resolveAnswer(q, a)).toMatchObject({ ok: true, answer: 'Bangalore' });
+  });
+
+  it('never sends "last working day" to the model', async () => {
+    const ask = vi.fn(async () => 'Jun 2024');
+    expect(await resolveAnswer({ text: 'What is your Official last working day?', kind: 'text' }, answers, ask)).toMatchObject({ ok: false });
+    expect(ask).not.toHaveBeenCalled();
   });
 
   it('skips without a model', async () => {

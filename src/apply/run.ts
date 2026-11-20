@@ -93,7 +93,7 @@ export async function runApply(cfg: Config, opts: RunOptions, now = new Date()):
     const limit = dry ? a.maxPerDay : budget;
     // The same role is often posted several times (different job ids): apply once per
     // title + company, counting earlier runs' applications too.
-    const roleKey = (t: string, co: string): string => `${t}|${co}`.toLowerCase().replace(/s+/g, ' ').trim();
+    const roleKey = (t: string, co: string): string => `${t}|${co}`.toLowerCase().replace(/\s+/g, ' ').trim();
     const roles = new Set(
       Object.values(history.jobs)
         .filter((j) => j.status === 'applied')
@@ -142,6 +142,10 @@ export async function runApply(cfg: Config, opts: RunOptions, now = new Date()):
             failures++;
             lines.failed.push(`${label}: ${out.reason}`);
             record(c, { status: 'failed', reason: out.reason });
+            {
+              const fdir = await newRunDir(cfg.stateDir, `apply-${c.id}`);
+              await page.screenshot({ path: join(fdir, 'screenshot.png'), fullPage: true }).catch(() => undefined);
+            }
             break;
         }
       } catch (err) {
