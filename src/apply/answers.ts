@@ -69,7 +69,7 @@ export type AskModel = (q: Question, profile: string) => Promise<string | null>;
  * skipped, so the model can't make up a salary, notice period or personal detail.
  */
 const SENSITIVE =
-  /\b(ctc|salary|compensation|package|lpa|lakhs?|lacs?|notice|joining|join\b|last working|lwd\b|relieving|date of birth|dob|age\b|gender|marital|married|aadhaa?r|pan\b|passport|address|phone|mobile|e-?mail|linkedin|nationality|religion|caste|disabilit|visa|bond|offer in hand|serving)/i;
+  /\b(ctc|salary|compensation|package|lpa|lakhs?|lacs?|notice|joining|join\b|last working|lwd\b|relieving|date of birth|dob|age\b|gender|marital|married|aadhaa?r|pan\b|passport|address|phone|mobile|e-?mail|linkedin|nationality|religion|caste|disabilit|visa|bond|offer in hand|serving|available|availability|willing|comfortable|ready to|okay|ok (with|for)|graduat|degree|full.?time)/i;
 
 /** Lower-case, single spaces, and one spelling for words Naukri recruiters spell many ways. */
 const norm = (s: string): string =>
@@ -208,12 +208,13 @@ const HAVE_EXPERIENCE_Q = /^(do|have|are) you (have |got )?(any |good |hands-on 
  * A rule phrase matches when every one of its words occurs in the question as a whole word, in
  * any order: "current ctc" matches "What is your current annual CTC?". Put specific rules
  * ("current ctc lakhs") before general ones ("current ctc"): the first match wins.
+ * A word also matches its plural: "face to face interview" matches "... interviews?".
  */
 export function phraseMatches(phrase: string, question: string): boolean {
   const text = ` ${norm(question)} `;
   return norm(phrase)
     .split(' ')
-    .every((w) => new RegExp(`(^|[^a-z0-9])${escapeRe(w)}([^a-z0-9]|$)`).test(text));
+    .every((w) => new RegExp(`(^|[^a-z0-9])${escapeRe(w)}(?:s|es)?([^a-z0-9]|$)`).test(text));
 }
 
 export async function resolveAnswer(

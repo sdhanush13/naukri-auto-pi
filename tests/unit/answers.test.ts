@@ -47,6 +47,8 @@ describe('phraseMatches', () => {
     expect(phraseMatches('current ctc lakhs', 'What is your current CTC?')).toBe(false);
     expect(phraseMatches('age', 'Can you manage a team?')).toBe(false);
     expect(phraseMatches('c#', 'Rate your C# skills')).toBe(true);
+    expect(phraseMatches('face to face interview', 'Are you Available for Face to Face interviews?')).toBe(true);
+    expect(phraseMatches('age', 'Are you okay with the wages?')).toBe(false);
   });
 });
 
@@ -142,9 +144,11 @@ describe('resolveAnswer', () => {
     expect(await resolveAnswer(q, a)).toMatchObject({ ok: true, answer: 'Bangalore' });
   });
 
-  it('never sends "last working day" to the model', async () => {
-    const ask = vi.fn(async () => 'Jun 2024');
+  it('never sends "last working day", availability or degree questions to the model', async () => {
+    const ask = vi.fn(async () => 'No');
     expect(await resolveAnswer({ text: 'What is your Official last working day?', kind: 'text' }, answers, ask)).toMatchObject({ ok: false });
+    expect(await resolveAnswer({ text: 'Are you Available for Face to Face interviews?', kind: 'radio', options: ['Yes', 'No'] }, answers, ask)).toMatchObject({ ok: false });
+    expect(await resolveAnswer({ text: 'Are you a fulltime graduate?', kind: 'checkbox', options: ['Yes', 'No'] }, answers, ask)).toMatchObject({ ok: false });
     expect(ask).not.toHaveBeenCalled();
   });
 
