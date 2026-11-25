@@ -19,6 +19,8 @@ export interface MockQuestion {
   text: string;
   kind: 'text' | 'radio' | 'checkbox';
   options?: string[];
+  /** Shows a "Skip this question" chip, with the real markup (chip inside .chatbot_Chips). */
+  skippable?: boolean;
 }
 
 export interface MockJob {
@@ -41,6 +43,7 @@ export const MOCK_JOBS: MockJob[] = [
       { text: 'Are you willing to relocate?', kind: 'radio', options: ['Yes', 'No'] },
       { text: 'How many years of experience do you have in C#?', kind: 'text' },
       { text: 'Which clouds have you used?', kind: 'checkbox', options: ['AWS', 'Azure', 'GCP'] },
+      { text: 'IF Yes, Ex-Beta employee id', kind: 'text', skippable: true },
     ],
   },
   { id: '102', title: 'Java Developer', company: 'Gamma', exp: '4-8 Yrs', loc: 'Bengaluru', kind: 'apply' },

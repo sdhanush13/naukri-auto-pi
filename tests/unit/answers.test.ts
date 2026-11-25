@@ -133,6 +133,19 @@ describe('resolveAnswer', () => {
     expect(await resolveAnswer({ text: 'Do you have experience in Azure Data Factory?', kind: 'text' }, answers, ask)).toMatchObject({ ok: false });
   });
 
+  it('never sends a model "No" to a skills question, but allows it for employer questions', async () => {
+    const no = vi.fn(async () => 'No hands-on experience with .NET Framework 4.8 or WinForms.');
+    expect(await resolveAnswer({ text: 'Do you have hands-on experience in .NET Framework 4.8 and WinForms?', kind: 'text' }, answers, no)).toMatchObject({ ok: false });
+    const a = await resolveAnswer({ text: 'Have you worked at Infosys before?', kind: 'checkbox', options: ['Yes', 'No'] }, answers, async () => 'No');
+    expect(a).toMatchObject({ ok: true, answer: 'No' });
+  });
+
+  it('accepts "hands on" with a space and "Azure Services"', async () => {
+    const ask = vi.fn(async () => null);
+    expect(await resolveAnswer({ text: 'Do you have hands on experience working on Azure API and Azure Services', kind: 'text' }, answers, ask)).toMatchObject({ answer: 'Yes' });
+    expect(await resolveAnswer({ text: 'How many years of experience do you have in Azure Service?', kind: 'number' }, answers, ask)).toMatchObject({ answer: '5' });
+  });
+
   it('matches Lacs/Lakh spellings to "lakhs" rules', async () => {
     const a = answersSchema.parse({ ...answers, rules: [{ match: ['current ctc lakhs'], answer: '28.08' }, { match: ['current ctc'], answer: '2808000' }] });
     expect(await resolveAnswer({ text: 'What is your current CTC in Lacs per annum?', kind: 'number' }, a)).toMatchObject({ answer: '28.08' });

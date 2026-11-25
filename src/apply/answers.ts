@@ -55,6 +55,8 @@ export interface Question {
   kind: QuestionKind;
   /** Choices for radio / checkbox questions, as shown on the page. */
   options?: string[];
+  /** Text of the question's "Skip this question" chip, if the recruiter made it optional. */
+  skip?: string;
 }
 
 export type Resolution =
@@ -157,7 +159,7 @@ const FILLER = new Set(
     'relevant hands-on hands experience exp years year yrs yr working worked work development developer developers ' +
     'engineer engineering programming coding application applications app apps based architecture framework ' +
     'frameworks technologies technology stack full fullstack language languages version versions projects project ' +
-    'tools tool environment api apis platform platforms services core'
+    'tools tool environment api apis platform platforms services service core'
   ).split(' '),
 );
 
@@ -202,7 +204,7 @@ function skillYears(q: Question, answers: Answers): string | null {
 }
 
 /** "Do you have experience in SQL/Oracle?" → Yes when the profile lists one of them. */
-const HAVE_EXPERIENCE_Q = /^(do|have|are) you (have |got )?(any |good |hands-on |prior |working )*(experience|exposure|worked|familiar|knowledge)\b/i;
+const HAVE_EXPERIENCE_Q = /^(do|have|are) you (have |got )?(any |good |hands[- ]on |prior |working )*(experience|exposure|worked|familiar|knowledge)\b/i;
 
 /**
  * A rule phrase matches when every one of its words occurs in the question as a whole word, in
@@ -264,6 +266,14 @@ export async function resolveAnswer(
     return { ok: false, reason: `local model failed: ${(err as Error).message}` };
   }
   if (raw === null || raw.trim() === '') return { ok: false, reason: unfit ?? 'local model: profile does not answer it' };
+  // The 3B model answered "No hands-on experience with .NET Framework 4.8" although the profile
+  // lists it (live, 2026-11-25). A "No" to a skills question is never sent from the model;
+  // it is skipped, and a saved rule or skill can answer it next time. ("Have you worked at
+  // Infosys before?" is about employers, not skills, so it is not affected.)
+  const employerQ = /\b(worked|work) (at|for|with) (us|[a-z0-9&.]+ (before|earlier|previously))|\bbefore\b|\bex-/i.test(q.text);
+  if (HAVE_EXPERIENCE_Q.test(q.text.trim()) && !employerQ && /^\s*no\b/i.test(raw)) {
+    return { ok: false, reason: `local model said "${raw.slice(0, 80)}" to a skills question; not sent` };
+  }
   const fitted = fitAnswer(q, raw);
   if (fitted === null) return { ok: false, reason: unfit ?? `local model answer "${raw}" fits none of the options (${q.options?.join(' / ') ?? q.kind})` };
   return { ok: true, answer: fitted, source: 'llm' };

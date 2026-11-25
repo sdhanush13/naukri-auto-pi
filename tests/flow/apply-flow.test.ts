@@ -83,8 +83,9 @@ describe('apply flow against mock Naukri', () => {
       { q: 'Are you willing to relocate?', a: 'Yes' },
       { q: 'How many years of experience do you have in C#?', a: '5' },
       { q: 'Which clouds have you used?', a: 'Azure' }, // from the (fake) local model
+      { q: 'IF Yes, Ex-Beta employee id', a: '(skipped)' }, // optional; the model did not know
     ]);
-    expect(site.state.llmCalls).toBe(1); // the CTC question never reached the model
+    expect(site.state.llmCalls).toBe(2); // clouds + employee id; the CTC question never reached the model
 
     const h = await history();
     expect(h.jobs['102'].status).toBe('filtered'); // Java title

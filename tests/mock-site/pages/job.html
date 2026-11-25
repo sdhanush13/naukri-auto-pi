@@ -23,6 +23,8 @@
     <div id="singleselect_radiobutton__x1" class="ssrc__radio-group"></div>
     <div class="multicheckboxes-container"></div>
     <div class="textArea" contenteditable="true" id="userInput__x1InputBox" hidden></div>
+    <!-- Real markup: the container's class also contains "chatbot_Chip"; only the inner chip reacts. -->
+    <div class="chips"><div class="chatbot_Chips chatbot_ChipsInRow" id="chips__x1"></div></div>
     <div id="sendMsgbtn_container__x1"><div class="sendMsg">Save</div></div>
   </div>
 
@@ -35,6 +37,7 @@
     const radios = drawer.querySelector('.ssrc__radio-group');
     const boxes = drawer.querySelector('.multicheckboxes-container');
     const input = drawer.querySelector('.textArea');
+    const chips = drawer.querySelector('.chatbot_Chips');
     const answers = [];
     let i = -1;
 
@@ -56,10 +59,11 @@
     };
     const next = () => {
       i++;
-      radios.innerHTML = ''; boxes.innerHTML = ''; input.textContent = ''; input.hidden = true;
+      radios.innerHTML = ''; boxes.innerHTML = ''; chips.innerHTML = ''; input.textContent = ''; input.hidden = true;
       if (i >= QUESTIONS.length) return finish();
       const q = QUESTIONS[i];
       bot(q.text);
+      if (q.skippable) chips.innerHTML = '<div class="chatbot_Chip chipInRow chipItem"><span>Skip this question</span></div>';
       if (q.kind === 'radio') {
         q.options.forEach((o, k) => {
           radios.insertAdjacentHTML('beforeend', '<div class="ssrc__radio-btn-container"><input type="radio" class="ssrc__radio" name="r" id="r' + k + '" value="' + o + '"><label class="ssrc__label" for="r' + k + '">' + o + '</label></div>');
@@ -81,6 +85,10 @@
       else value = input.textContent.trim();
       if (!value) return; // Save does nothing without an answer
       answers.push({ q: q.text, a: value }); user(value); next();
+    });
+    chips.addEventListener('click', (e) => {
+      if (!e.target.closest('.chatbot_Chip')) return; // a click on the container itself does nothing
+      answers.push({ q: QUESTIONS[i].text, a: '(skipped)' }); user('Skip this question'); next();
     });
     drawer.querySelector('.chatBot-ic-cross').addEventListener('click', () => { drawer.hidden = true; });
 

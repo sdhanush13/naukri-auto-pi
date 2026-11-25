@@ -23,7 +23,9 @@ export const jobSel = {
   send: 'div.sendMsg',
   radioLabel: '.ssrc__radio-btn-container label',
   checkboxLabel: '.mcc__label',
-  chip: '[class*="chatbot_Chip"]',
+  // The chip itself; [class*="chatbot_Chip"] also matched its .chatbot_Chips container, and a
+  // click on the container did nothing (live, 2026-11-23..25).
+  chip: '.chatbot_Chip',
   close: '.chatBot-ic-cross',
   successText: /you have successfully applied|applied to\s*["“]|application sent/i,
   quotaText: /daily quota has been (expired|exhausted)/i,
@@ -49,6 +51,7 @@ export interface ApplyDeps {
 }
 
 const MAX_QUESTIONS = 20;
+const SKIP_CHIP = /^skip( this question)?$/i;
 const NUMBER_HINT = /\b(how many|number of|no\.? of|years?|yrs?|months?|in days|lpa|ctc|lakhs?|percentage|%|rate|out of)\b/i;
 
 async function firstVisible(page: Page, selectors: string[], timeoutMs: number): Promise<string | null> {
@@ -91,9 +94,12 @@ async function readQuestion(drawer: Locator, text: string): Promise<Question> {
   if (radios.length) return { text, kind: 'radio', options: radios };
   const boxes = await visibleTexts(drawer.locator(jobSel.checkboxLabel));
   if (boxes.length) return { text, kind: 'checkbox', options: boxes };
-  const chips = await visibleTexts(drawer.locator(jobSel.chip));
-  if (chips.length) return { text, kind: 'radio', options: chips };
-  return { text, kind: NUMBER_HINT.test(text) ? 'number' : 'text' };
+  const chips = [...new Set(await visibleTexts(drawer.locator(jobSel.chip)))];
+  const skip = chips.find((c) => SKIP_CHIP.test(c));
+  const real = chips.filter((c) => c !== skip);
+  if (real.length) return { text, kind: 'radio', options: chips, skip };
+  // Only a "Skip this question" chip: a text question the recruiter made optional.
+  return { text, kind: NUMBER_HINT.test(text) ? 'number' : 'text', skip };
 }
 
 async function submitAnswer(drawer: Locator, q: Question, answer: string): Promise<void> {
@@ -165,6 +171,7 @@ export async function applyToJob(page: Page, url: string, deps: ApplyDeps): Prom
   // Restarted after every answer: the local model can take minutes on its first question.
   let deadline = Date.now() + timeoutMs * 6;
   while (Date.now() < deadline) {
+    try {
     if (await quotaHit(page)) return { status: 'quota', reason: 'Naukri says the daily apply quota is used up' };
     if (await succeeded(page)) return { status: 'applied', questions: answered };
 
@@ -185,16 +192,29 @@ export async function applyToJob(page: Page, url: string, deps: ApplyDeps): Prom
     await page.waitForTimeout(600); // let the options for this question render
     const q = await readQuestion(drawer, text);
     const res = await resolveAnswer(q, deps.answers, deps.ask);
-    if (!res.ok) {
+    if (!res.ok && q.skip) {
+      // The recruiter made this question optional ("Skip this question"): skip it, not the job.
+      log.info({ question: q.text, kind: q.kind, reason: res.reason }, 'no answer; using "Skip this question"');
+      await drawer.locator(jobSel.chip).filter({ hasText: q.skip }).filter({ visible: true }).first().click();
+      answered.push(`${q.text} → (skipped: ${res.reason})`);
+    } else if (!res.ok) {
       log.info({ question: q.text, kind: q.kind, options: q.options, reason: res.reason }, 'cannot answer; skipping job');
       await closeDrawer(page, drawer);
       return { status: 'skipped-question', reason: res.reason, question: q.text };
+    } else {
+      log.info({ question: q.text, kind: q.kind, answer: res.answer, source: res.source }, 'answering');
+      await submitAnswer(drawer, q, res.answer);
+      answered.push(`${q.text} → ${res.answer} (${res.source})`);
     }
-    log.info({ question: q.text, kind: q.kind, answer: res.answer, source: res.source }, 'answering');
-    await submitAnswer(drawer, q, res.answer);
-    answered.push(`${q.text} → ${res.answer} (${res.source})`);
     previous = text;
     deadline = Date.now() + timeoutMs * 6;
+    } catch (err) {
+      // After the last answer Naukri may navigate away (seen live: that application had gone
+      // through). Let the page settle; the success check at the top of the loop decides.
+      if (!/execution context was destroyed|navigat|target closed|frame was detached/i.test(String(err))) throw err;
+      log.info('page navigated during the chat; checking the result');
+      await page.waitForLoadState('load', { timeout: timeoutMs }).catch(() => undefined);
+    }
   }
   return { status: 'failed', reason: 'no confirmation that the application went through' };
 }
